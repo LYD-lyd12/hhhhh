@@ -1,0 +1,321 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --icon-nav: 20px;
+  --icon-inline: 16px;
+  --icon-empty: 48px;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  background: #060918;
+  color: #e2e8f0;
+}
+
+/* ─── 全局暗色背景动画 ───────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(99, 102, 241, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 60% at 50% 50%, rgba(14, 165, 233, 0.03) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── 滚动条 ───────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.5);
+}
+
+/* ─── 玻璃卡片 ───────────────────────────────── */
+.glass-card {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 1rem;
+}
+
+.glass-card-hover:hover {
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.1), 0 0 60px rgba(56, 189, 248, 0.05);
+  transform: translateY(-2px);
+}
+
+/* ─── 霓虹发光文字 ─────────────────────────── */
+.neon-text {
+  text-shadow: 0 0 20px rgba(56, 189, 248, 0.5), 0 0 40px rgba(56, 189, 248, 0.2);
+}
+
+.neon-text-sm {
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+/* ─── 发光边框 ───────────────────────────────── */
+.glow-border {
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.15), inset 0 0 20px rgba(56, 189, 248, 0.05);
+}
+
+/* ─── 数字等宽 ───────────────────────────────── */
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── 状态脉冲 ───────────────────────────────── */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(56, 189, 248, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(56, 189, 248, 0.6); }
+}
+.status-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ─── 滚动渐入 ───────────────────────────────── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out forwards;
+}
+
+/* ─── 打字光标 ───────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.cursor-blink::after {
+  content: '▊';
+  animation: blink 1s step-end infinite;
+  color: #38bdf8;
+}
+
+/* ─── 网格线背景 ────────────────────────────── */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ─── React 图表覆盖 ─────────────────────────── */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(56, 189, 248, 0.08);
+}
+.recharts-text {
+  fill: #94a3b8 !important;
+  font-size: 11px !important;
+}
+
+/* ─── 员工实况 气泡浮动 ─────────────────────── */
+@keyframes bubble-float {
+  0% { opacity: 0; transform: translateY(8px) scale(0.8); }
+  15% { opacity: 1; transform: translateY(0) scale(1); }
+  70% { opacity: 1; transform: translateY(-20px) scale(1); }
+  100% { opacity: 0; transform: translateY(-36px) scale(0.7); }
+}
+
+/* ─── 员工实况 头像弹性跳动（不用 transform 避免跟3D冲突）── */
+@keyframes avatar-bounce {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -6px; }
+}
+
+/* ─── 员工实况 头像浮动 ─────────────────────── */
+@keyframes avatar-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ─── 员工实况 光环脉冲 ─────────────────────── */
+@keyframes ring-pulse {
+  0%, 100% { transform: scale(0.95); opacity: 0.4; }
+  50% { transform: scale(1.12); opacity: 0.7; }
+}
+
+/* ─── 等距办公室 3D 透视 ────────────────────── */
+.perspective-office {
+  perspective: 1200px;
+  perspective-origin: 50% 60%;
+}
+
+/* ══════════════════════════════════════════════
+   员工实况 — 走路动画关键帧
+   ══════════════════════════════════════════════ */
+
+/* 走路上下弹跳 */
+@keyframes walk-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* 左臂前摆 */
+@keyframes arm-swing-left {
+  0%, 100% { transform: rotate(15deg); transform-origin: top; }
+  50% { transform: rotate(-15deg); transform-origin: top; }
+}
+
+/* 右臂后摆 */
+@keyframes arm-swing-right {
+  0%, 100% { transform: rotate(-15deg); transform-origin: top; }
+  50% { transform: rotate(15deg); transform-origin: top; }
+}
+
+/* 左腿前摆 */
+@keyframes leg-swing-left {
+  0%, 100% { transform: rotate(-10deg); transform-origin: top; }
+  50% { transform: rotate(10deg); transform-origin: top; }
+}
+
+/* 右腿后摆 */
+@keyframes leg-swing-right {
+  0%, 100% { transform: rotate(10deg); transform-origin: top; }
+  50% { transform: rotate(-10deg); transform-origin: top; }
+}
+
+/* 粒子上升 */
+@keyframes particle-rise {
+  0% { opacity: 0.7; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-30px) scale(0.2); }
+}
+
+/* 泳道头像浮动 */
+@keyframes lantern-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* 员工实况 — 头像走路弹跳 */
+@keyframes avatar-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* ══════════════════════════════════════════════
+   员工实况 — 等距办公室 小牛马角色动画
+   ══════════════════════════════════════════════ */
+
+/* 工作状态：轻微上下弹跳 + 微晃 */
+@keyframes c-work {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-2px) rotate(-1deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-1px) rotate(1deg); }
+}
+.animate-c-work { animation: c-work 0.8s ease-in-out infinite; }
+
+/* 空闲状态：缓慢呼吸浮动 */
+@keyframes c-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.animate-c-idle { animation: c-idle 3s ease-in-out infinite; }
+
+/* 围脖飘带 — 空闲慢飘 */
+@keyframes scarf-idle {
+  0%, 100% { d: path("M48,32 Q55,45 50,60 Q48,68 52,76"); }
+  33% { d: path("M48,32 Q56,44 51,58 Q49,66 53,74"); }
+  66% { d: path("M48,32 Q54,46 49,62 Q47,70 51,78"); }
+}
+.animate-scarf { animation: scarf-idle 4s ease-in-out infinite; }
+
+/* 围脖飘带 — 工作快飘 */
+@keyframes scarf-busy {
+  0%, 100% { d: path("M48,32 Q58,42 54,55 Q52,64 56,72"); }
+  25% { d: path("M48,32 Q60,40 56,52 Q54,62 58,70"); }
+  50% { d: path("M48,32 Q56,44 52,58 Q50,66 54,74"); }
+  75% { d: path("M48,32 Q62,38 58,50 Q56,60 60,68"); }
+}
+.animate-scarf-busy { animation: scarf-busy 0.6s ease-in-out infinite; }
+
+/* 左手臂摆动 */
+@keyframes arm-l {
+  0%, 100% { transform: rotate(0deg); transform-origin: top center; }
+  50% { transform: rotate(-20deg); transform-origin: top center; }
+}
+.animate-arm-l { animation: arm-l 0.6s ease-in-out infinite; }
+
+/* 右手臂摆动 */
+@keyframes arm-r {
+  0%, 100% { transform: rotate(0deg); transform-origin: top center; }
+  50% { transform: rotate(20deg); transform-origin: top center; }
+}
+.animate-arm-r { animation: arm-r 0.6s ease-in-out infinite; }
+
+/* 左腿摆动 */
+@keyframes leg-l {
+  0%, 100% { transform: rotate(0deg); transform-origin: top center; }
+  50% { transform: rotate(15deg); transform-origin: top center; }
+}
+.animate-leg-l { animation: leg-l 0.5s ease-in-out infinite; }
+
+/* 右腿摆动 */
+@keyframes leg-r {
+  0%, 100% { transform: rotate(0deg); transform-origin: top center; }
+  50% { transform: rotate(-15deg); transform-origin: top center; }
+}
+.animate-leg-r { animation: leg-r 0.5s ease-in-out infinite; }
+
+/* 尾巴摇摆 */
+@keyframes tail-wag {
+  0%, 100% { transform: rotate(0deg); transform-origin: left center; }
+  25% { transform: rotate(8deg); transform-origin: left center; }
+  75% { transform: rotate(-8deg); transform-origin: left center; }
+}
+.animate-tail { animation: tail-wag 1.2s ease-in-out infinite; }
+
+/* 空闲气泡浮动 */
+@keyframes float-bubble {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
+  50% { transform: translateY(-6px) scale(1.05); opacity: 0.85; }
+}
+.animate-float-bubble { animation: float-bubble 2.5s ease-in-out infinite; }
+
+/* 光标闪烁 */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-blink { animation: blink-cursor 1s step-end infinite; }
+
+/* 进度条动画 A */
+@keyframes progress-a {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.4); }
+}
+.animate-progress-a { animation: progress-a 0.8s ease-in-out infinite; }
+
+/* 进度条动画 B（反相） */
+@keyframes progress-b {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+.animate-progress-b { animation: progress-b 0.8s ease-in-out infinite; }
+
+/* 飘浮粒子 */
+@keyframes float-particle {
+  0% { transform: translateY(0) translateX(0); opacity: 0.08; }
+  25% { opacity: 0.15; }
+  50% { transform: translateY(-30px) translateX(10px); opacity: 0.1; }
+  75% { opacity: 0.05; }
+  100% { transform: translateY(-60px) translateX(-5px); opacity: 0; }
+}
+.animate-float-particle { animation: float-particle 6s ease-in-out infinite; }
