@@ -2,11 +2,8 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 echo ======================================
-echo  TeleToken Router - 全栈启动
+echo  TeleToken Router - 本地启动
 echo ======================================
-echo.
-echo 提示：推荐使用"一键启动.bat"，自带内网穿透
-echo 此脚本仅启动本地服务（localhost）
 echo.
 echo [1/2] 启动后端 API 服务 (端口 8080)...
 start "TeleToken Backend" cmd /c "cd /d %~dp0backend && node server.js"
