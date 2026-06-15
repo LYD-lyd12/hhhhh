@@ -158,6 +158,7 @@ const deepseekAdapter = {
   },
 
   // SSE 流式调用（支持真实流式输出）
+  // 返回 { fullContent, usage } 供上层流后精准计费
   async streamCompletion(modelMapping, messages, requestBody, onChunk) {
     const response = await axios.post(
       `${modelMapping.api_base_url}/chat/completions`,
@@ -180,6 +181,8 @@ const deepseekAdapter = {
 
     return new Promise((resolve, reject) => {
       let buffer = '';
+      let fullContent = '';
+      let finalUsage = null;
       response.data.on('data', (chunk) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
@@ -191,6 +194,11 @@ const deepseekAdapter = {
             if (data === '[DONE]') continue;
             try {
               const parsed = JSON.parse(data);
+              // 累积 delta 内容，用于流后 Token 计数
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) fullContent += delta;
+              // 捕获最后一个 chunk 中的 usage（厂商返回的真实 Token 数）
+              if (parsed.usage) finalUsage = parsed.usage;
               onChunk(parsed);
             } catch {
               // 忽略无法解析的行
@@ -198,7 +206,7 @@ const deepseekAdapter = {
           }
         }
       });
-      response.data.on('end', resolve);
+      response.data.on('end', () => resolve({ fullContent, usage: finalUsage }));
       response.data.on('error', reject);
     });
   }

@@ -105,14 +105,14 @@ router.get('/vendor-configs', (req, res) => {
 });
 
 router.post('/vendor-configs', (req, res) => {
-  const { vendor_name, api_base_url, api_key, api_secret, status = 'active' } = req.body;
+  const { vendor_name, api_base_url, api_key, api_secret, status = 'active', priority = 100 } = req.body;
 
   if (!vendor_name) {
     return res.status(400).json({ error: 'Vendor name is required' });
   }
 
-  db.run(`INSERT INTO vendor_configs (id, vendor_name, api_base_url, api_key, api_secret, status) 
-    VALUES (?, ?, ?, ?, ?, ?)`, [uuidv4(), vendor_name, api_base_url, api_key, api_secret, status], (err) => {
+  db.run(`INSERT INTO vendor_configs (id, vendor_name, api_base_url, api_key, api_secret, status, priority) 
+    VALUES (?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), vendor_name, api_base_url, api_key, api_secret, status, priority], (err) => {
     if (err) {
       return res.status(500).json({ error: 'Internal server error' });
     }
@@ -121,7 +121,7 @@ router.post('/vendor-configs', (req, res) => {
 });
 
 router.put('/vendor-configs/:vendorId', (req, res) => {
-  const { api_base_url, api_key, api_secret, status } = req.body;
+  const { api_base_url, api_key, api_secret, status, priority } = req.body;
   let query = 'UPDATE vendor_configs SET updated_at = CURRENT_TIMESTAMP';
   let params = [];
 
@@ -140,6 +140,10 @@ router.put('/vendor-configs/:vendorId', (req, res) => {
   if (status) {
     query += ', status = ?';
     params.push(status);
+  }
+  if (priority !== undefined) {
+    query += ', priority = ?';
+    params.push(priority);
   }
 
   query += ' WHERE id = ?';
@@ -288,6 +292,158 @@ router.get('/stats', (req, res) => {
       });
     });
   });
+});
+
+// ═══════════════════════════════════════════════════════
+// 退款 API
+// ═══════════════════════════════════════════════════════
+
+/**
+ * POST /api/v1/admin/call-logs/:id/refund
+ * 对指定调用记录执行退款，恢复用户余额
+ */
+router.post('/call-logs/:id/refund', (req, res) => {
+  const { amount, reason = '' } = req.body;
+  const refundAmount = parseFloat(amount);
+
+  if (!refundAmount || refundAmount <= 0) {
+    return res.status(400).json({ error: '退款金额必须大于 0' });
+  }
+
+  // 查找调用记录
+  db.get('SELECT * FROM call_logs WHERE id = ?', [req.params.id], (err, log) => {
+    if (err || !log) {
+      return res.status(404).json({ error: '调用记录不存在' });
+    }
+
+    // 已退款金额 + 本次退款不能超过原始费用
+    const alreadyRefunded = log.refund_amount || 0;
+    if (alreadyRefunded + refundAmount > log.cost) {
+      return res.status(400).json({
+        error: '退款金额超出可退范围',
+        cost: log.cost,
+        already_refunded: alreadyRefunded,
+        max_refundable: Math.max(0, log.cost - alreadyRefunded),
+      });
+    }
+
+    // 更新调用记录 + 恢复用户余额
+    const newRefundAmount = alreadyRefunded + refundAmount;
+    db.run(
+      `UPDATE call_logs SET refund_amount = ?, refund_reason = ? WHERE id = ?`,
+      [newRefundAmount, reason, req.params.id],
+      (err) => {
+        if (err) {
+          return res.status(500).json({ error: '更新退款记录失败' });
+        }
+        // 恢复余额
+        db.run(`UPDATE users SET balance = balance + ? WHERE id = ?`, [refundAmount, log.user_id], (err2) => {
+          if (err2) {
+            return res.status(500).json({ error: '恢复余额失败，但退款记录已更新' });
+          }
+          console.log(`[Admin] 退款: call_log ${req.params.id}, 金额 ¥${refundAmount}, 原因: ${reason}`);
+          res.json({
+            message: '退款成功',
+            refund_amount: refundAmount,
+            total_refunded: newRefundAmount,
+            original_cost: log.cost,
+            reason,
+          });
+        });
+      }
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+// 对账 API
+// ═══════════════════════════════════════════════════════
+
+/**
+ * GET /api/v1/admin/reconciliation?start_date=&end_date=
+ * 按日期范围查询对账摘要：
+ *   - 系统计费的 Token/金额 vs 厂商返回的 Token 数
+ *   - 差异率（用于发现计费偏差）
+ *   - 退款汇总
+ */
+router.get('/reconciliation', (req, res) => {
+  const { start_date, end_date } = req.query;
+
+  let where = "WHERE status = 'success'";
+  const params = [];
+
+  if (start_date) {
+    where += ' AND created_at >= ?';
+    params.push(start_date);
+  }
+  if (end_date) {
+    where += ' AND created_at <= ?';
+    params.push(end_date);
+  }
+
+  // 汇总查询
+  db.get(
+    `SELECT
+      COUNT(*)                        AS total_calls,
+      SUM(cost)                       AS total_charged,
+      SUM(refund_amount)              AS total_refunded,
+      SUM(input_tokens)               AS sys_input_tokens,
+      SUM(output_tokens)              AS sys_output_tokens,
+      SUM(vendor_input_tokens)        AS vendor_input_tokens,
+      SUM(vendor_output_tokens)       AS vendor_output_tokens,
+      SUM(input_tokens + output_tokens) AS sys_total_tokens,
+      SUM(vendor_input_tokens + vendor_output_tokens) AS vendor_total_tokens
+    FROM call_logs ${where}`,
+    params,
+    (err, summary) => {
+      if (err) {
+        return res.status(500).json({ error: '对账查询失败' });
+      }
+
+      const sysTokens   = summary?.sys_total_tokens   || 0;
+      const vendorTokens = summary?.vendor_total_tokens || 0;
+
+      // Token 差异率 = (系统计数 - 厂商计数) / 厂商计数
+      const tokenDiff = sysTokens - vendorTokens;
+      const tokenDiffRate = vendorTokens > 0
+        ? ((tokenDiff / vendorTokens) * 100).toFixed(2)
+        : null;
+
+      // 查询有较大差异的单条记录（差异 > 10%）
+      db.all(
+        `SELECT id, model_alias, input_tokens, output_tokens,
+                vendor_input_tokens, vendor_output_tokens, cost, refund_amount,
+                created_at
+         FROM call_logs ${where}
+           AND vendor_input_tokens + vendor_output_tokens > 0
+           AND ABS(
+             (input_tokens + output_tokens) -
+             (vendor_input_tokens + vendor_output_tokens)
+           ) * 1.0 / (vendor_input_tokens + vendor_output_tokens) > 0.1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        params,
+        (err2, anomalies) => {
+          res.json({
+            period: { start_date: start_date || '全部', end_date: end_date || '全部' },
+            summary: {
+              total_calls:           summary?.total_calls      || 0,
+              total_charged:         summary?.total_charged    || 0,
+              total_refunded:         summary?.total_refunded   || 0,
+              net_revenue:           (summary?.total_charged || 0) - (summary?.total_refunded || 0),
+              sys_input_tokens:      summary?.sys_input_tokens      || 0,
+              sys_output_tokens:     summary?.sys_output_tokens     || 0,
+              vendor_input_tokens:   summary?.vendor_input_tokens   || 0,
+              vendor_output_tokens:  summary?.vendor_output_tokens  || 0,
+              token_diff:            tokenDiff,
+              token_diff_rate:       tokenDiffRate ? `${tokenDiffRate}%` : '无厂商数据',
+            },
+            anomalies: anomalies || [],
+          });
+        }
+      );
+    }
+  );
 });
 
 module.exports = router;

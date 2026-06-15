@@ -73,6 +73,7 @@ function createTables() {
       api_key TEXT,
       api_secret TEXT,
       status TEXT DEFAULT 'active',
+      priority INTEGER DEFAULT 100,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
@@ -98,10 +99,15 @@ function createTables() {
       input_tokens INTEGER DEFAULT 0,
       output_tokens INTEGER DEFAULT 0,
       cost REAL DEFAULT 0,
+      vendor_input_tokens INTEGER DEFAULT 0,
+      vendor_output_tokens INTEGER DEFAULT 0,
+      vendor_cost REAL DEFAULT 0,
       duration INTEGER DEFAULT 0,
       vendor_key TEXT,
       status TEXT DEFAULT 'success',
       error_message TEXT,
+      refund_amount REAL DEFAULT 0,
+      refund_reason TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
@@ -166,20 +172,20 @@ function seedData() {
     const now = new Date().toISOString();
     const vendors = [
       // 付费厂商（需配置 API Key 才能真实调用）
-      ['vendor-volcengine', '火山引擎', 'volcengine', 'https://api.volcengine.com'],
-      ['vendor-zhipu',      '智谱AI',   'zhipu',      'https://api.zhipuai.cn'],
-      ['vendor-minimax',    'MiniMax',  'minimax',    'https://api.minimax.chat'],
-      ['vendor-alibaba',    '阿里云',   'alibaba',    'https://dashscope.aliyuncs.com'],
-      ['vendor-deepseek',   'DeepSeek', 'deepseek',   'https://api.deepseek.com'],
-      // 免费厂商（无需 API Key，开箱即用）
-      ['vendor-pollinations', 'Pollinations.ai (免费)', 'pollinations', 'https://text.pollinations.ai'],
-      ['vendor-ollama',       'Ollama (本地免费)',      'ollama',       'http://localhost:11434'],
+      ['vendor-deepseek',   'DeepSeek', 'deepseek',   'https://api.deepseek.com',       0],
+      ['vendor-volcengine', '火山引擎', 'volcengine', 'https://api.volcengine.com',      10],
+      ['vendor-zhipu',      '智谱AI',   'zhipu',      'https://api.zhipuai.cn',          20],
+      ['vendor-alibaba',    '阿里云',   'alibaba',    'https://dashscope.aliyuncs.com',   30],
+      ['vendor-minimax',    'MiniMax',  'minimax',    'https://api.minimax.chat',         40],
+      // 免费厂商（无需 API Key，开箱即用）— 低优先级作为兜底
+      ['vendor-pollinations', 'Pollinations.ai (免费)', 'pollinations', 'https://text.pollinations.ai', 500],
+      ['vendor-ollama',       'Ollama (本地免费)',      'ollama',       'http://localhost:11434',       600],
     ];
-    for (const [id, vendor_name, adapter_key, api_base_url] of vendors) {
+    for (const [id, vendor_name, adapter_key, api_base_url, priority] of vendors) {
       _db.run(
-        `INSERT INTO vendor_configs (id,vendor_name,adapter_key,api_base_url,api_key,api_secret,status,created_at,updated_at)
-         VALUES (?,?,?,?,'','','active',?,?)`,
-        [id, vendor_name, adapter_key, api_base_url, now, now]
+        `INSERT INTO vendor_configs (id,vendor_name,adapter_key,api_base_url,api_key,api_secret,status,priority,created_at,updated_at)
+         VALUES (?,?,?,?,'','','active',?,?,?)`,
+        [id, vendor_name, adapter_key, api_base_url, priority, now, now]
       );
     }
     console.log('[DB] 初始厂商配置已插入');
@@ -287,6 +293,39 @@ let _initError = null;
         // ALTER TABLE ADD COLUMN 会把已有行的 role 设为 'user'，
         // 需要恢复管理员的 admin 角色
         _db.run("UPDATE users SET role = 'admin' WHERE email = 'admin@teletoken.io'");
+      } catch (e) {
+        // 列已存在则忽略
+      }
+      // 迁移：为已存在的 call_logs 表添加对账和退款列（若尚无）
+      try {
+        _db.run("ALTER TABLE call_logs ADD COLUMN vendor_input_tokens INTEGER DEFAULT 0");
+        _db.run("ALTER TABLE call_logs ADD COLUMN vendor_output_tokens INTEGER DEFAULT 0");
+        _db.run("ALTER TABLE call_logs ADD COLUMN vendor_cost REAL DEFAULT 0");
+        _db.run("ALTER TABLE call_logs ADD COLUMN refund_amount REAL DEFAULT 0");
+        _db.run("ALTER TABLE call_logs ADD COLUMN refund_reason TEXT");
+        console.log('[DB] 已为 call_logs 表添加对账/退款列（迁移）');
+      } catch (e) {
+        // 列已存在则忽略
+      }
+      // 迁移：为 call_logs 添加 vendor_key 列（记录实际调用厂商）
+      try {
+        _db.run("ALTER TABLE call_logs ADD COLUMN vendor_key TEXT");
+        console.log('[DB] 已为 call_logs 表添加 vendor_key 列（迁移）');
+      } catch (e) {
+        // 列已存在则忽略
+      }
+      // 迁移：为已存在的 vendor_configs 表添加 priority 列（若尚无）
+      try {
+        _db.run("ALTER TABLE vendor_configs ADD COLUMN priority INTEGER DEFAULT 100");
+        console.log('[DB] 已为 vendor_configs 表添加 priority 列（迁移）');
+        // 设置默认优先级：DeepSeek 最高(0)，其他按顺序递减
+        _db.run("UPDATE vendor_configs SET priority = 0 WHERE adapter_key = 'deepseek'");
+        _db.run("UPDATE vendor_configs SET priority = 10 WHERE adapter_key = 'volcengine'");
+        _db.run("UPDATE vendor_configs SET priority = 20 WHERE adapter_key = 'zhipu'");
+        _db.run("UPDATE vendor_configs SET priority = 30 WHERE adapter_key = 'alibaba'");
+        _db.run("UPDATE vendor_configs SET priority = 40 WHERE adapter_key = 'minimax'");
+        _db.run("UPDATE vendor_configs SET priority = 500 WHERE adapter_key = 'pollinations'");
+        _db.run("UPDATE vendor_configs SET priority = 600 WHERE adapter_key = 'ollama'");
       } catch (e) {
         // 列已存在则忽略
       }
@@ -415,6 +454,31 @@ const db = {
           callback.call({ changes: 0 }, err);
         }
       }
+    });
+  },
+
+  /**
+   * 事务包装器：直接在底层 _db 上执行 BEGIN/COMMIT/ROLLBACK
+   * fn 是同步函数，接受 exec 参数；失败自动 ROLLBACK
+   */
+  transaction(fn) {
+    return new Promise((resolve, reject) => {
+      whenReady((initErr) => {
+        if (initErr || _initError) return reject(initErr || _initError);
+        try {
+          try { _db.run('ROLLBACK'); } catch (_) {}
+          _db.run('BEGIN TRANSACTION');
+          const exec = (q, p) => _db.run(q, p || []);
+          fn(exec);
+          _db.run('COMMIT');
+          persistDB();
+          resolve();
+        } catch (err) {
+          try { _db.run('ROLLBACK'); } catch (_) {}
+          console.error('[DB] 事务失败:', err.message);
+          reject(err);
+        }
+      });
     });
   }
 };

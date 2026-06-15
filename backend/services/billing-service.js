@@ -33,55 +33,15 @@ class BillingService {
   }
 
   /**
-   * 记录调用日志并扣减余额
+   * 记录调用日志并扣减余额（事务保证一致性：三条操作要么全成功，要么全回滚）
    */
   async recordUsage(userId, apiKeyId, modelAlias, inputTokens, outputTokens, cost, duration, vendorKey, status = 'success', errorMessage = null) {
-    return new Promise((resolve, reject) => {
-      db.run(
-        `UPDATE users SET balance = balance - ? WHERE id = ?`,
-        [cost, userId],
-        (err) => {
-          if (err) {
-            console.error('[计费] 余额扣减失败:', err.message);
-            return reject(err);
-          }
-
-          db.run(
-            `UPDATE api_keys SET used_requests = used_requests + 1 WHERE id = ?`,
-            [apiKeyId],
-            (err) => {
-              if (err) {
-                console.error('[计费] API Key 使用次数更新失败:', err.message);
-              }
-            }
-          );
-
-          db.run(
-            `INSERT INTO call_logs (id, user_id, api_key_id, model_alias, input_tokens, output_tokens, cost, duration, vendor_key, status, error_message, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              uuidv4(),
-              userId,
-              apiKeyId,
-              modelAlias,
-              inputTokens,
-              outputTokens,
-              cost,
-              duration,
-              vendorKey,
-              status,
-              errorMessage,
-              new Date().toISOString(),
-            ],
-            (err) => {
-              if (err) {
-                console.error('[计费] 调用日志记录失败:', err.message);
-                return reject(err);
-              }
-              resolve();
-            }
-          );
-        }
+    await db.transaction((exec) => {
+      exec('UPDATE users SET balance = balance - ? WHERE id = ?', [cost, userId]);
+      exec('UPDATE api_keys SET used_requests = used_requests + 1 WHERE id = ?', [apiKeyId]);
+      exec(
+        'INSERT INTO call_logs (id, user_id, api_key_id, model_alias, input_tokens, output_tokens, cost, duration, vendor_key, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [uuidv4(), userId, apiKeyId, modelAlias, inputTokens, outputTokens, cost, duration, vendorKey, status, errorMessage, new Date().toISOString()]
       );
     });
   }
