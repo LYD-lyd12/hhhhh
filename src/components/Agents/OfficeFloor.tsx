@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Users, Plus, Trash2, X, Brain, Play,
   Bot, Send, Loader2, Clock, FileText, Zap,
   PanelLeftOpen, PanelRightOpen,
   Sparkles, CheckCircle2, Clock4, AlertCircle, TrendingUp,
-  BarChart3, History, ArrowRight, Search, Settings, UserPlus,
-  Code2, Shield, Bug, Palette, GanttChart, Workflow, TestTube, Cpu
+  BarChart3, History, Search, Settings, UserPlus,
+  Code2, Shield, Bug, Palette, GanttChart, Workflow, TestTube, Cpu,
+  BookOpen, MessageSquare, FolderOpen, ChevronRight, ChevronLeft,
+  ListChecks, User, Cpu as CpuIcon, Inbox
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import IsometricOffice3D from './IsometricOffice3D'
+import WorkstationGrid from './WorkstationGrid'
 
 // ═══════════════════════ 类型定义 ═══════════════════════
 
@@ -71,10 +73,8 @@ interface Mission {
 }
 
 const EMPLOYEE_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#F97316', '#6366F1', '#14B8A6']
-
 function randomColor() { return EMPLOYEE_COLORS[Math.floor(Math.random() * EMPLOYEE_COLORS.length)] }
 
-// 按领域获取图标
 function getDomainIcon(color: string, tags: string[]) {
   const tagLower = tags.join(',').toLowerCase()
   if (tagLower.includes('安全') || tagLower.includes('security')) return { Icon: Shield, bg: '#fee2e2', fg: '#ef4444' }
@@ -82,7 +82,7 @@ function getDomainIcon(color: string, tags: string[]) {
   if (tagLower.includes('审查') || tagLower.includes('review')) return { Icon: Bug, bg: '#fce7f3', fg: '#ec4899' }
   if (tagLower.includes('设计') || tagLower.includes('前端')) return { Icon: Palette, bg: '#ede9fe', fg: '#8b5cf6' }
   if (tagLower.includes('测试') || tagLower.includes('qa')) return { Icon: TestTube, bg: '#fef3c7', fg: '#f59e0b' }
-  return { Icon: Cpu, bg: '#ccfbf1', fg: '#14b8a6' }
+  return { Icon: CpuIcon, bg: '#ccfbf1', fg: '#14b8a6' }
 }
 
 // ═══════════════════════ 主组件 ═══════════════════════
@@ -100,6 +100,13 @@ export default function OfficeFloor() {
   const [showCreateEmployee, setShowCreateEmployee] = useState(false)
   const [showCreateTeam, setShowCreateTeam] = useState(false)
   const [newEmp, setNewEmp] = useState({ name: '', emoji: '🤖', tags: '', prompt: '', color: randomColor() })
+
+  // Agent详情弹窗
+  const [selectedMember, setSelectedMember] = useState<Expert | null>(null)
+  const [detailTab, setDetailTab] = useState<'config' | 'skills' | 'records' | 'chat'>('config')
+  const [chatInput, setChatInput] = useState('')
+  const [chatHistory, setChatHistory] = useState<{role: string; content: string}[]>([])
+  const [chatLoading, setChatLoading] = useState(false)
 
   const activeTeam = activeTeamId ? teams.find(t => t.id === activeTeamId) || null : null
   const activeMission = activeMissionId ? missions.find(m => m.id === activeMissionId) || null : null
@@ -139,6 +146,25 @@ export default function OfficeFloor() {
         localStorage.setItem(EMPLOYEES_KEY, JSON.stringify(demoEmployees))
         localStorage.setItem(TEAMS_KEY, JSON.stringify([demoTeam]))
         localStorage.setItem(MISSIONS_KEY, JSON.stringify([demoMission]))
+      }
+      // 数据兜底：如果 team 存在但成员为空，且 employees 有数据，自动归队到第一个 team
+      if (loadedTeams.length > 0 && loadedEmployees.length > 0) {
+        const firstTeam = loadedTeams[0]
+        const hasEmptyTeam = loadedTeams.some((t: Team) => !t.members || t.members.length === 0)
+        if (hasEmptyTeam) {
+          loadedTeams = loadedTeams.map((t: Team, idx: number) => {
+            if (idx === 0 && (!t.members || t.members.length === 0)) {
+              return {
+                ...t,
+                members: loadedEmployees.map((e: Employee) => ({
+                  id: e.id, name: e.name, emoji: e.emoji, color: e.color, prompt: e.prompt, tags: e.tags
+                }))
+              }
+            }
+            return t
+          })
+          localStorage.setItem(TEAMS_KEY, JSON.stringify(loadedTeams))
+        }
       }
       setEmployees(loadedEmployees)
       setTeams(loadedTeams)
@@ -201,8 +227,7 @@ export default function OfficeFloor() {
       setTeams(prev => [newTeam, ...prev])
       setActiveTeamId(newTeam.id)
       setTabMode('teams')
-      setTaskInput('')
-      return
+      team = newTeam
     }
     if (!team || team.members.length === 0) return
     const mission: Mission = { id: 'msn_' + Date.now(), title, teamId: team.id, teamName: team.name, status: 'planning', subtasks: [], report: '', error: '', createdAt: Date.now(), updatedAt: Date.now() }
@@ -269,92 +294,169 @@ export default function OfficeFloor() {
     draft: { label: '草稿', cls: 'bg-gray-50 text-gray-600 border-gray-200' },
   }
 
-  // 3D 场景 Agent 数据（等距坐标位置映射 6x6 网格）
-  const deskSpots3D = [
-    { gx: 1, gy: 1 }, { gx: 3, gy: 1 }, { gx: 5, gy: 1 },
-    { gx: 0, gy: 3 }, { gx: 2, gy: 3 }, { gx: 4, gy: 3 },
-    { gx: 1, gy: 5 }, { gx: 3, gy: 5 }, { gx: 5, gy: 5 },
-  ]
+  type AgentState = 'idle' | 'working' | 'done' | 'error' | 'meeting'
 
-  const agents3D = useMemo(() => {
+  const agentsForGrid = useMemo(() => {
     if (!activeTeam) return []
-    return activeTeam.members.map((m, i) => {
+    return activeTeam.members.map(m => {
       const st = activeMission?.subtasks?.find(s => s.assigneeId === m.id)
-      const spot = deskSpots3D[i % deskSpots3D.length]
       return {
         id: m.id,
         name: m.name,
         color: m.color,
-        emoji: (m as any).emoji || '🤖',
-        gx: spot.gx,
-        gy: spot.gy,
-        targetGx: spot.gx,
-        targetGy: spot.gy,
         state: (st?.status === 'running' ? 'working' :
           st?.status === 'done' ? 'done' :
-          st?.status === 'error' ? 'error' : 'idle') as Agent3DState,
+            st?.status === 'error' ? 'error' : 'idle') as AgentState,
         progress: st?.progress || 0,
+        title: st?.title || undefined,
+        tags: m.tags,
+        prompt: m.prompt,
+        emoji: m.emoji,
       }
     })
   }, [activeTeam, activeMission])
 
-  type Agent3DState = 'idle' | 'working' | 'meeting' | 'done' | 'error'
+  // Agent即时交互
+  const sendChat = async () => {
+    if (!chatInput.trim() || !selectedMember) return
+    const userMsg = chatInput.trim()
+    setChatInput('')
+    setChatLoading(true)
+    const newHistory = [...chatHistory, { role: 'user', content: userMsg }]
+    setChatHistory(newHistory)
+    try {
+      const res = await api.models.chat('deepseek-chat', [
+        { role: 'system', content: `你是${selectedMember.name}。${selectedMember.prompt}` },
+        ...newHistory.map(h => ({ role: h.role as any, content: h.content }))
+      ], { temperature: 0.5 })
+      let result = ''
+      if (res.choices?.[0]?.message?.content) result = res.choices[0].message.content
+      else if (typeof res === 'string') result = res
+      setChatHistory(prev => [...prev, { role: 'assistant', content: result }])
+    } catch (e: any) {
+      setChatHistory(prev => [...prev, { role: 'assistant', content: `出错: ${e?.message || '未知错误'}` }])
+    } finally {
+      setChatLoading(false)
+    }
+  }
 
-  // ═══════════════════════ 渲染 ═══════════════════════
+  // 获取Agent的工作记录
+  const getAgentRecords = (memberId: string) => {
+    const records: { mission: Mission; task: SubTask }[] = []
+    missions.forEach(m => {
+      m.subtasks.filter(st => st.assigneeId === memberId).forEach(st => {
+        records.push({ mission: m, task: st })
+      })
+    })
+    return records.sort((a, b) => b.mission.createdAt - a.mission.createdAt)
+  }
+
+  // 全局待办工作表数据
+  const allPendingTasks = useMemo(() => {
+    const tasks: { mission: Mission; task: SubTask }[] = []
+    missions.forEach(m => {
+      m.subtasks.filter(st => st.status !== 'done').forEach(st => {
+        tasks.push({ mission: m, task: st })
+      })
+    })
+    return tasks
+  }, [missions])
+
   return (
     <div className="flex h-full bg-[#F8FAFC] text-slate-700 overflow-hidden font-sans">
-      {/* ═══ 左侧边栏 ═══ */}
-      <div className={`shrink-0 transition-all duration-300 ${showLeftPanel ? 'w-60' : 'w-0'} overflow-hidden`}>
+      {/* ═══ 左侧边栏：全局待办工作表 ═══ */}
+      <div className={`shrink-0 transition-all duration-300 ${showLeftPanel ? 'w-64' : 'w-0'} overflow-hidden`}>
         <div className="h-full flex flex-col bg-white border-r border-slate-200">
-          <div className="p-5 border-b border-slate-100">
-            <div className="flex items-center gap-2.5 mb-4">
+          {/* Logo */}
+          <div className="p-4 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-[#1E40AF] flex items-center justify-center">
                 <Bot size={16} className="text-white" />
               </div>
               <span className="font-bold text-sm text-slate-800 tracking-tight">翼站智脑</span>
             </div>
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input className="w-full bg-slate-50 text-xs rounded-lg pl-8 pr-3 py-2 outline-none border border-slate-200 focus:border-[#1E40AF]/30 transition-colors placeholder:text-slate-400 text-slate-600" placeholder="搜索智能体或团队..." />
-            </div>
           </div>
 
-          <nav className="p-4 space-y-1">
+          {/* 导航菜单 */}
+          <nav className="p-3 space-y-1">
             {[
               { id: 'overview', label: '工作间总览', icon: GanttChart, dot: 'bg-[#1E40AF]' },
               { id: 'agents', label: '智能体管理', icon: Users, dot: 'bg-violet-500' },
               { id: 'teams', label: '专家团管理', icon: Brain, dot: 'bg-amber-500' },
             ].map(item => (
               <button key={item.id} onClick={() => setTabMode(item.id as any)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${tabMode === item.id ? 'bg-slate-50 text-slate-800 font-medium' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50/50'}`}>
-                <span className={`w-1 h-4 rounded-full ${item.dot} transition-opacity ${tabMode === item.id ? 'opacity-100' : 'opacity-0'}`} />
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${tabMode === item.id ? 'bg-slate-50 text-slate-800 font-medium' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50/50'}`}>
                 <item.icon size={16} strokeWidth={1.8} />
                 <span>{item.label}</span>
               </button>
             ))}
           </nav>
 
-          <div className="mx-4 my-2 h-px bg-slate-100" />
+          <div className="mx-3 my-1 h-px bg-slate-100" />
 
-          <div className="px-4 space-y-1">
-            <button onClick={() => { setShowCreateTeam(true); setTabMode('teams') }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
-              <Sparkles size={15} strokeWidth={1.5} /> 新建任务
+          {/* 全局待办工作表 */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="px-3 py-2 flex items-center gap-2">
+              <ListChecks size={14} className="text-slate-500" />
+              <span className="text-xs font-semibold text-slate-600">全局待办</span>
+              {allPendingTasks.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                  {allPendingTasks.length}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-1">
+              {allPendingTasks.length === 0 ? (
+                <div className="text-center text-[10px] text-slate-400 py-4">
+                  <CheckCircle2 size={20} className="mx-auto mb-1 text-slate-300" />
+                  暂无待办任务
+                </div>
+              ) : (
+                allPendingTasks.map(({ mission, task }) => {
+                  const sc = statusConfig[task.status] || statusConfig.draft
+                  return (
+                    <div key={task.id} className="p-2 rounded-lg bg-slate-50 border border-slate-100 hover:bg-white hover:border-slate-200 transition-all cursor-pointer"
+                      onClick={() => { setActiveMissionId(mission.id); setTabMode('overview') }}>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[11px] font-medium text-slate-700 truncate">{task.title}</span>
+                        <span className={`text-[9px] px-1 rounded border ${sc.cls} shrink-0`}>{sc.label}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                        <User size={9} />
+                        <span className="truncate">{task.assigneeName}</span>
+                      </div>
+                      <div className="text-[9px] text-slate-400 mt-0.5 truncate">
+                        来自: {mission.title}
+                      </div>
+                      {task.status === 'running' && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <div className="flex-1 h-1 rounded-full bg-slate-200">
+                            <div className="h-full rounded-full bg-blue-400 transition-all" style={{ width: `${task.progress}%` }} />
+                          </div>
+                          <span className="text-[9px] text-slate-400">{task.progress}%</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          {/* 快速操作 */}
+          <div className="px-3 pb-2 space-y-1">
+            <button onClick={() => { setShowCreateTeam(true); setTabMode('teams') }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+              <Sparkles size={13} strokeWidth={1.5} /> 新建任务
             </button>
-            <button onClick={() => { setShowCreateEmployee(true); setTabMode('agents') }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
-              <UserPlus size={15} strokeWidth={1.5} /> 创建智能体
-            </button>
-            <button onClick={() => setShowCreateTeam(true)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
-              <Brain size={15} strokeWidth={1.5} /> 组建专家团
+            <button onClick={() => { setShowCreateEmployee(true); setTabMode('agents') }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+              <UserPlus size={13} strokeWidth={1.5} /> 创建智能体
             </button>
           </div>
 
-          <div className="mt-auto p-4 border-t border-slate-100">
+          <div className="mt-auto p-3 border-t border-slate-100">
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <div className="w-2 h-2 rounded-full bg-emerald-400" />
               <span>工作间在线</span>
-            </div>
-            <div className="flex items-center gap-2 mt-3 text-xs text-slate-400 cursor-pointer hover:text-slate-600">
-              <Settings size={13} /> 系统设置
             </div>
           </div>
         </div>
@@ -378,42 +480,49 @@ export default function OfficeFloor() {
           {isRunning && <div className="ml-auto flex items-center gap-1.5 bg-white rounded-full px-3 py-1 shadow-sm border border-slate-200 text-xs text-blue-600"><Loader2 size={12} className="animate-spin" /> 调度中...</div>}
         </div>
 
-        {/* CSS 3D 等距工作间总览 */}
+        {/* 工作间总览 */}
         {tabMode === 'overview' && (
-          <div className="h-[calc(100vh-180px)] border-b border-slate-200 shrink-0">
-            <IsometricOffice3D
-              agents={agents3D}
+          <div className="flex-1 overflow-hidden">
+            <WorkstationGrid
+              members={agentsForGrid}
               missionRunning={isRunning}
               activeTeamName={activeTeam?.name}
+              onMemberClick={(member) => {
+                const expert = activeTeam?.members.find(m => m.id === member.id)
+                if (expert) {
+                  setSelectedMember(expert)
+                  setDetailTab('config')
+                  setChatHistory([])
+                }
+              }}
             />
           </div>
         )}
 
         {/* 智能体管理 */}
         {tabMode === 'agents' && (
-          <div className="shrink-0 border-b border-slate-200 bg-white/40 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">智能体 ({employees.length})</span>
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-semibold text-slate-700">智能体 ({employees.length})</span>
               <button onClick={() => setShowCreateEmployee(true)} className="text-xs text-[#1E40AF] hover:text-blue-700 font-medium">+ 新建</button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {employees.map(emp => {
                 const { Icon, bg, fg } = getDomainIcon(emp.color, emp.tags)
                 return (
                   <div key={emp.id}
-                    className="group flex items-center gap-3 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
+                    className="group flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
                     onClick={() => activeTeam && addMemberToTeam(activeTeam.id, emp)}>
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
-                      <Icon size={15} style={{ color: fg }} />
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-sm font-bold text-white" style={{ backgroundColor: emp.color }}>
+                      {emp.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-slate-700 truncate">{emp.name}</div>
+                      <div className="text-sm font-medium text-slate-700">{emp.name}</div>
                       <div className="flex gap-1 mt-0.5">
                         {emp.tags.slice(0, 2).map(t => <span key={t} className="text-[10px] text-slate-400">#{t}</span>)}
                       </div>
                     </div>
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: emp.color }} />
-                    <Plus size={12} className="text-slate-300 group-hover:text-[#1E40AF] transition-colors" />
+                    <Plus size={14} className="text-slate-300 group-hover:text-[#1E40AF] transition-colors" />
                   </div>
                 )
               })}
@@ -423,172 +532,40 @@ export default function OfficeFloor() {
 
         {/* 专家团编辑 */}
         {tabMode === 'teams' && activeTeam && (
-          <div className="shrink-0 border-b border-slate-200 bg-white/40 p-4">
-            <div className="flex items-center justify-between mb-3">
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{activeTeam.name}</span>
+                <span className="text-sm font-semibold text-slate-700">{activeTeam.name}</span>
                 <span className="text-xs text-slate-400">{activeTeam.members.length}/5人</span>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => deleteTeam(activeTeam.id)} className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors"><Trash2 size={11} /> 解散</button>
+                <button onClick={() => deleteTeam(activeTeam.id)} className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1"><Trash2 size={11} /> 解散</button>
                 {activeTeam.members.length > 0 && (
                   <button onClick={confirmAndRun} disabled={isRunning}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-[#1E40AF] hover:bg-blue-700 text-white transition-colors disabled:opacity-40 flex items-center gap-1.5 shadow-sm">
+                    className="text-xs px-3 py-1.5 rounded-lg bg-[#1E40AF] hover:bg-blue-700 text-white transition-colors disabled:opacity-40 flex items-center gap-1.5">
                     {isRunning ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />} 启动
                   </button>
                 )}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {activeTeam.members.map(m => {
-                const { Icon, bg, fg } = getDomainIcon(m.color, m.tags)
-                return (
-                  <div key={m.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs">
-                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
-                      <Icon size={10} style={{ color: fg }} />
-                    </div>
-                    <span className="text-slate-600">{m.name.length > 5 ? m.name.slice(0,4)+'..' : m.name}</span>
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
-                    <button onClick={() => removeMemberFromTeam(activeTeam.id, m.id)} className="text-slate-400 hover:text-red-400"><X size={10} /></button>
+              {activeTeam.members.map(m => (
+                <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: m.color }}>
+                    {m.name.charAt(0)}
                   </div>
-                )
-              })}
+                  <span className="text-slate-600">{m.name}</span>
+                  <button onClick={() => removeMemberFromTeam(activeTeam.id, m.id)} className="text-slate-400 hover:text-red-400"><X size={12} /></button>
+                </div>
+              ))}
               {activeTeam.members.length < 5 && (
-                <button onClick={() => setTabMode('agents')} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-slate-300 text-xs text-slate-400 hover:text-[#1E40AF] hover:border-blue-300 transition-all">
-                  <Plus size={10} /> 添加成员
+                <button onClick={() => setTabMode('agents')} className="flex items-center gap-1 px-3 py-2 rounded-xl border border-dashed border-slate-300 text-sm text-slate-400 hover:text-[#1E40AF] hover:border-blue-300">
+                  <Plus size={14} /> 添加成员
                 </button>
               )}
             </div>
           </div>
         )}
-
-        {/* ═══ 中央工作区 - 卡片式团队仪表盘 ═══ */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* 活跃工作间 */}
-          {activeTeam && (
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Workflow size={16} className="text-slate-400" />
-                <h2 className="text-sm font-semibold text-slate-700">当前工作间 · {activeTeam.name}</h2>
-                {isRunning && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 font-medium">运行中</span>}
-              </div>
-
-              {/* 成员卡片 */}
-              <div className="grid grid-cols-2 gap-3">
-                {activeTeam.members.map(m => {
-                  const { Icon, bg, fg } = getDomainIcon(m.color, m.tags)
-                  const st = activeMission?.subtasks.find(s => s.assigneeId === m.id)
-                  const isWorking = st?.status === 'running'
-                  const isDone = st?.status === 'done'
-                  return (
-                    <div key={m.id} className={`p-4 rounded-xl border transition-all ${isWorking ? 'bg-blue-50/50 border-blue-200 shadow-sm' : isDone ? 'bg-emerald-50/30 border-emerald-200' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors`} style={{ backgroundColor: isWorking ? '#dbeafe' : bg }}>
-                            <Icon size={18} style={{ color: fg }} />
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-slate-700">{m.name}</div>
-                            <div className="flex gap-1 mt-0.5">
-                              {m.tags.slice(0, 3).map(t => <span key={t} className="text-[10px] text-slate-400">#{t}</span>)}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: m.color }} />
-                          {st && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${st.status === 'done' ? 'bg-emerald-100 text-emerald-700' : st.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' : st.status === 'error' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}`}>
-                              {st.status === 'done' ? '完成' : st.status === 'running' ? '执行' : st.status === 'error' ? '失败' : '待命'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {st && (st.status === 'running' || st.status === 'done') && (
-                        <div>
-                          <div className="text-[11px] text-slate-500 truncate mb-1.5">{st.title}</div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1 rounded-full bg-slate-200">
-                              <div className={`h-full rounded-full transition-all duration-700 ${st.status === 'done' ? 'bg-emerald-400' : 'bg-[#1E40AF]'}`} style={{ width: `${st.progress}%` }} />
-                            </div>
-                            <span className="text-[10px] text-slate-400 tabular-nums">{st.progress}%</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 任务输入栏 */}
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
-            <div className="flex -space-x-1">
-              {activeTeam?.members.slice(0, 4).map(m => {
-                const { Icon, bg, fg } = getDomainIcon(m.color, m.tags)
-                return (
-                  <div key={m.id} className="w-6 h-6 rounded-full ring-2 ring-white flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
-                    <Icon size={10} style={{ color: fg }} />
-                  </div>
-                )
-              })}
-            </div>
-            <input value={taskInput} onChange={e => setTaskInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && runMission()}
-              placeholder={employees.length > 0 ? '输入任务描述，AI 大脑自动分配...' : '请先在智能体管理中创建智能体'}
-              disabled={isRunning || employees.length === 0}
-              className="flex-1 bg-transparent text-sm outline-none text-slate-600 placeholder:text-slate-400 disabled:opacity-40" />
-            <button onClick={runMission} disabled={!taskInput.trim() || isRunning || employees.length === 0}
-              className="px-4 py-2 bg-[#1E40AF] hover:bg-blue-700 text-white text-xs rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm font-medium">
-              {isRunning ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-              {isRunning ? '执行中' : '发送'}
-            </button>
-          </div>
-
-          {/* 子任务进度列表 */}
-          {activeMission && activeMission.subtasks.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">子任务进度</h3>
-              {activeMission.subtasks.map(st => (
-                <div key={st.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-slate-200/80">
-                  {st.status === 'done' ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                    : st.status === 'running' ? <Loader2 size={14} className="text-blue-500 animate-spin shrink-0" />
-                    : st.status === 'error' ? <AlertCircle size={14} className="text-red-500 shrink-0" />
-                    : <Clock4 size={14} className="text-slate-300 shrink-0" />}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-700 truncate">{st.title}</span>
-                      <span className="text-[10px] text-slate-400 shrink-0">{st.assigneeName}</span>
-                    </div>
-                    <div className="flex-1 h-1 rounded-full bg-slate-100 mt-1.5">
-                      <div className={`h-full rounded-full transition-all duration-500 ${st.status === 'done' ? 'bg-emerald-400' : st.status === 'running' ? 'bg-[#1E40AF]' : 'bg-slate-300'}`} style={{ width: `${st.progress}%` }} />
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-slate-400 tabular-nums w-8 text-right">{st.progress}%</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 空态 */}
-          {employees.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Users size={40} className="text-slate-300 mb-4" />
-              <h3 className="text-sm font-medium text-slate-600 mb-1">暂无智能体</h3>
-              <p className="text-xs text-slate-400 mb-4">创建一个智能体来开始组建团队</p>
-              <button onClick={() => setShowCreateEmployee(true)} className="px-4 py-2 bg-[#1E40AF] text-white text-xs rounded-lg hover:bg-blue-700 transition-colors">创建智能体</button>
-            </div>
-          )}
-
-          {/* 无活跃团队 */}
-          {employees.length > 0 && !activeTeam && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Brain size={36} className="text-slate-300 mb-3" />
-              <h3 className="text-sm font-medium text-slate-600 mb-1">选择或创建专家团</h3>
-              <p className="text-xs text-slate-400 mb-4">在顶部标签栏选择一个工作间，或组建新团队</p>
-              <button onClick={() => setShowCreateTeam(true)} className="px-4 py-2 border border-[#1E40AF] text-[#1E40AF] text-xs rounded-lg hover:bg-blue-50 transition-colors">组建专家团</button>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* ═══ 右侧数据面板 ═══ */}
@@ -596,22 +573,20 @@ export default function OfficeFloor() {
         <div className="h-full flex flex-col bg-white border-l border-slate-200">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <span className="font-semibold text-sm text-slate-700">数据面板</span>
-            <button onClick={() => setShowRightPanel(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={14} /></button>
+            <button onClick={() => setShowRightPanel(false)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
           </div>
 
           <div className="p-4 space-y-3">
             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
               <div className="flex items-center gap-2 text-xs text-slate-500 mb-2"><Zap size={13} className="text-amber-500" /> 今日 Token 消耗</div>
-              <div className="text-xl font-bold text-slate-800 tracking-tight">{(todayTokens / 1000).toFixed(1)}k</div>
-              <div className="text-[10px] text-slate-400 mt-1">估算值，基于字符数</div>
+              <div className="text-xl font-bold text-slate-800">{(todayTokens / 1000).toFixed(1)}k</div>
             </div>
             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
               <div className="flex items-center gap-2 text-xs text-slate-500 mb-2"><TrendingUp size={13} className="text-emerald-500" /> Token 节省量</div>
-              <div className="text-xl font-bold text-slate-800 tracking-tight">{(todayTokens * 0.3 / 1000).toFixed(1)}k</div>
-              <div className="text-[10px] text-slate-400 mt-1">约节省 30%</div>
+              <div className="text-xl font-bold text-slate-800">{(todayTokens * 0.3 / 1000).toFixed(1)}k</div>
             </div>
             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-              <div className="flex items-center gap-2 text-xs text-slate-500 mb-2"><BarChart3 size={13} className="text-slate-500" /> 任务统计</div>
+              <div className="flex items-center gap-2 text-xs text-slate-500 mb-2"><BarChart3 size={13} /> 任务统计</div>
               <div className="flex gap-4 text-xs">
                 <div><span className="text-slate-800 font-bold">{completedMissions}</span><span className="text-slate-400 ml-1">完成</span></div>
                 <div><span className="text-slate-600 font-bold">{allMissions - completedMissions}</span><span className="text-slate-400 ml-1">进行</span></div>
@@ -644,37 +619,176 @@ export default function OfficeFloor() {
               </div>
             )}
           </div>
-
-          {activeMission && (
-            <div className="border-t border-slate-100 p-4 max-h-80 overflow-y-auto">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">任务产出</span>
-                <button onClick={() => setActiveMissionId(null)} className="text-slate-400 hover:text-slate-600"><X size={12} /></button>
-              </div>
-              {activeMission.status === 'done' ? (
-                <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: activeMission.report.replace(/\n/g, '<br/>').replace(/### (.*)/g, '<strong class="text-blue-700">$1</strong>').replace(/```(\w+)?\n?([\s\S]*?)```/g, '<pre class="bg-slate-100 p-2 rounded text-[10px] overflow-x-auto mt-1 mb-1">$2</pre>') }} />
-              ) : activeMission.status === 'error' ? (
-                <div className="text-xs text-red-500">{activeMission.error || '未知错误'}</div>
-              ) : activeMission.status === 'executing' ? (
-                <div className="space-y-2">
-                  {activeMission.subtasks.map(st => (
-                    <div key={st.id} className="bg-slate-50 rounded-lg p-2">
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-slate-600">{st.assigneeName}</span>
-                        <span className={st.status === 'done' ? 'text-emerald-500' : st.status === 'running' ? 'text-blue-500' : st.status === 'error' ? 'text-red-500' : 'text-slate-400'}>
-                          {st.status === 'done' ? '✓' : st.status === 'running' ? '...' : st.status === 'error' ? '✗' : '⌛'}
-                        </span>
-                      </div>
-                      <div className="w-full h-1 rounded-full bg-slate-200"><div className="h-full rounded-full bg-[#1E40AF] transition-all" style={{ width: `${st.progress}%` }} /></div>
-                    </div>
-                  ))}
-                </div>
-              ) : (<div className="text-xs text-slate-400 text-center py-4">等待规划...</div>)}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* ═══ Agent详情弹窗 ═══ */}
+      {selectedMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setSelectedMember(null)}>
+          <div className="bg-white rounded-2xl w-[680px] max-w-[90vw] h-[520px] max-h-[85vh] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-200 flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* 弹窗头部 */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold text-white shadow-sm" style={{ backgroundColor: selectedMember.color }}>
+                  {selectedMember.name.charAt(0)}
+                </div>
+                <div>
+                  <div className="font-semibold text-base text-slate-800">{selectedMember.name}</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {selectedMember.tags.map(t => (
+                      <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedMember(null)} className="text-slate-400 hover:text-slate-600 p-1"><X size={20} /></button>
+            </div>
+
+            {/* Tab导航 */}
+            <div className="flex items-center gap-1 px-5 pt-3 pb-0 border-b border-slate-100">
+              {[
+                { id: 'config', label: '配置文档', icon: FileText },
+                { id: 'skills', label: '技能列表', icon: Zap },
+                { id: 'records', label: '工作记录', icon: Clock },
+                { id: 'chat', label: '即时交互', icon: MessageSquare },
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setDetailTab(tab.id as any)}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm transition-colors border-b-2 ${detailTab === tab.id ? 'text-[#1E40AF] border-[#1E40AF] font-medium' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                  <tab.icon size={14} />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 弹窗内容 */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {/* 配置文档 */}
+              {detailTab === 'config' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-slate-500 block mb-1.5">Agent ID</label>
+                    <div className="bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-700 font-mono">{selectedMember.id}</div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-500 block mb-1.5">系统提示词</label>
+                    <div className="bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{selectedMember.prompt}</div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-500 block mb-1.5">专业领域</label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedMember.tags.map(tag => (
+                        <span key={tag} className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-500 block mb-1.5">标识色</label>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full shadow-sm" style={{ backgroundColor: selectedMember.color }} />
+                      <span className="text-sm text-slate-600 font-mono">{selectedMember.color}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 技能列表 */}
+              {detailTab === 'skills' && (
+                <div className="space-y-3">
+                  {selectedMember.tags.map((tag, i) => {
+                    const { Icon, bg, fg } = getDomainIcon(selectedMember.color, [tag])
+                    return (
+                      <div key={tag} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
+                          <Icon size={18} style={{ color: fg }} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-slate-700">{tag}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">基于领域标签自动关联的技能模块</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {selectedMember.tags.length === 0 && (
+                    <div className="text-center text-sm text-slate-400 py-8">暂无技能标签</div>
+                  )}
+                </div>
+              )}
+
+              {/* 工作记录 */}
+              {detailTab === 'records' && (
+                <div className="space-y-3">
+                  {getAgentRecords(selectedMember.id).length === 0 ? (
+                    <div className="text-center text-sm text-slate-400 py-8">暂无工作记录</div>
+                  ) : (
+                    getAgentRecords(selectedMember.id).map(({ mission, task }) => (
+                      <div key={task.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-medium text-slate-700">{task.title}</div>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${statusConfig[task.status]?.cls || statusConfig.draft.cls}`}>
+                            {statusConfig[task.status]?.label || '未知'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-400 mb-2">来自任务: {mission.title}</div>
+                        {task.result && (
+                          <div className="text-xs text-slate-600 bg-white rounded-lg p-2 border border-slate-100 truncate">
+                            {task.result}
+                          </div>
+                        )}
+                        {task.error && (
+                          <div className="text-xs text-red-500 bg-red-50 rounded-lg p-2 border border-red-100">
+                            {task.error}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* 即时交互 */}
+              {detailTab === 'chat' && (
+                <div className="flex flex-col h-full">
+                  <div className="flex-1 overflow-y-auto space-y-3 mb-3 pr-1">
+                    {chatHistory.length === 0 && (
+                      <div className="text-center text-sm text-slate-400 py-8">
+                        <MessageSquare size={24} className="mx-auto mb-2 text-slate-300" />
+                        开始与 {selectedMember.name} 对话
+                      </div>
+                    )}
+                    {chatHistory.map((msg, i) => (
+                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${msg.role === 'user' ? 'bg-[#1E40AF] text-white' : 'bg-slate-100 text-slate-700'}`}>
+                          {msg.content}
+                        </div>
+                      </div>
+                    ))}
+                    {chatLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-slate-100 rounded-xl px-3 py-2 text-sm text-slate-500 flex items-center gap-1">
+                          <Loader2 size={12} className="animate-spin" /> 思考中...
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <input
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && sendChat()}
+                      placeholder={`给 ${selectedMember.name} 发送指令...`}
+                      className="flex-1 bg-slate-50 text-sm rounded-lg px-3 py-2 outline-none border border-slate-200 focus:border-[#1E40AF]/40 transition-colors text-slate-700"
+                    />
+                    <button onClick={sendChat} disabled={!chatInput.trim() || chatLoading}
+                      className="px-3 py-2 bg-[#1E40AF] hover:bg-blue-700 text-white text-sm rounded-lg transition-colors disabled:opacity-30 flex items-center gap-1">
+                      <Send size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ 创建智能体弹窗 ═══ */}
       {showCreateEmployee && (

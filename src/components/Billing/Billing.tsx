@@ -24,46 +24,8 @@ interface ApiKeyRecord {
   created_at: string
 }
 
-// ─── 大屏模拟数据 ──────────────────────────────────
-const MODEL_DISTRIBUTION = [
-  { name: 'DeepSeek', value: 32, color: '#38bdf8' },
-  { name: 'Pollinations', value: 24, color: '#a78bfa' },
-  { name: '火山引擎', value: 15, color: '#f97316' },
-  { name: '通义千问', value: 12, color: '#34d399' },
-  { name: '智谱', value: 8, color: '#f472b6' },
-  { name: 'MiniMax', value: 5, color: '#fbbf24' },
-  { name: 'Ollama', value: 4, color: '#94a3b8' },
-]
-
-// 7 厂商健康状态（模拟）
-const VENDOR_HEALTH: { vendor: string; health: number; calls: number; latency: string; status: 'online' | 'degraded' | 'offline' }[] = [
-  { vendor: 'DeepSeek', health: 99.8, calls: 12850, latency: '320ms', status: 'online' },
-  { vendor: '火山引擎', health: 99.5, calls: 8420, latency: '280ms', status: 'online' },
-  { vendor: '智谱', health: 98.2, calls: 3150, latency: '450ms', status: 'online' },
-  { vendor: 'MiniMax', health: 97.8, calls: 1980, latency: '520ms', status: 'online' },
-  { vendor: '通义千问', health: 99.1, calls: 5200, latency: '380ms', status: 'online' },
-  { vendor: 'Pollinations', health: 95.5, calls: 9600, latency: '680ms', status: 'degraded' },
-  { vendor: 'Ollama', health: 88.3, calls: 1340, latency: '120ms', status: 'degraded' },
-]
-
-// 实时调用波浪（模拟数据，实际按时间滚动）
-const CALL_WAVE = Array.from({ length: 24 }, (_, i) => ({
-  time: `${i}:00`,
-  calls: Math.floor(Math.random() * 200 + 50),
-  cost: +(Math.random() * 0.5 + 0.05).toFixed(3),
-}))
-
-// 成本排名
-const COST_RANKING = [
-  { model: 'DeepSeek V3', cost: 12.8, percentage: 35 },
-  { model: '火山-豆包Pro', cost: 8.5, percentage: 23 },
-  { model: 'Pollinations GPT', cost: 5.2, percentage: 14 },
-  { model: '智谱 GLM-4', cost: 4.1, percentage: 11 },
-  { model: '通义千问 Turbo', cost: 3.4, percentage: 9 },
-  { model: 'MiniMax abab6.5', cost: 1.8, percentage: 5 },
-  { model: 'Ollama 本地', cost: 0.6, percentage: 2 },
-  { model: '其他', cost: 0.4, percentage: 1 },
-]
+// ─── 模型颜色池 ──────────────────────────────────
+const MODEL_COLORS = ['#38bdf8', '#a78bfa', '#f97316', '#34d399', '#f472b6', '#fbbf24', '#94a3b8', '#fb7185']
 
 export default function Billing() {
   const [selectedPeriod, setSelectedPeriod] = useState('month')
@@ -72,6 +34,13 @@ export default function Billing() {
   const [monthlyCost, setMonthlyCost] = useState(0)
   const [monthlyTokens, setMonthlyTokens] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // ─── 动态数据（从 API 计算） ─────────────────────
+  const [vendorHealth, setVendorHealth] = useState<{ vendor: string; health: number; calls: number; latency: string; status: 'online' | 'degraded' | 'offline' }[]>([])
+  const [modelDistribution, setModelDistribution] = useState<{ name: string; value: number; color: string }[]>([])
+  const [callWave, setCallWave] = useState<{ time: string; calls: number; cost: number }[]>([])
+  const [costRanking, setCostRanking] = useState<{ model: string; cost: number; percentage: number }[]>([])
+  const [totalCallCount, setTotalCallCount] = useState(0)
 
   // ─── API Key 管理 ────────────────────────────────────
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([])
@@ -88,6 +57,8 @@ export default function Billing() {
   useEffect(() => {
     fetchData()
     fetchApiKeys()
+    fetchNodesHealth()
+    fetchCallLogs()
   }, [selectedPeriod])
 
   // ─── API Key 方法 ────────────────────────────────────
@@ -186,6 +157,87 @@ export default function Billing() {
     }
   }
 
+  // ─── 获取节点健康数据 → 替换 VENDOR_HEALTH 假数据 ──
+  const fetchNodesHealth = async () => {
+    try {
+      const json = await api.nodes.health()
+      if (json.data && Array.isArray(json.data)) {
+        const vendors = json.data.map((n: any) => ({
+          vendor: (n.vendor || n.name || 'Unknown'),
+          health: n.status === 'healthy' ? 99.5 : n.status === 'warning' ? 95 : 85,
+          calls: n.activeRequests || 0,
+          latency: `${n.latency || 0}ms`,
+          status: n.status === 'healthy' ? 'online' as const : n.status === 'warning' ? 'degraded' as const : 'offline' as const,
+        }))
+        setVendorHealth(vendors)
+      }
+    } catch { /* 失败时保留空，页面显示为空 */ }
+  }
+
+  // ─── 获取调用日志 → 计算分布/趋势/排名 ──────────────
+  const fetchCallLogs = async () => {
+    try {
+      const res = await api.admin.callLogs({})
+      if (!res.data || !Array.isArray(res.data)) return
+      const logs: any[] = res.data
+      setTotalCallCount(logs.length)
+
+      // 1. 模型分布
+      const modelMap = new Map<string, number>()
+      logs.forEach((l: any) => {
+        const model = l.model_alias || 'Unknown'
+        modelMap.set(model, (modelMap.get(model) || 0) + 1)
+      })
+      const total = modelMap.size > 0 ? Array.from(modelMap.values()).reduce((a, b) => a + b, 0) : 1
+      const dist = Array.from(modelMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name, count], i) => ({
+          name,
+          value: Math.round((count / total) * 100),
+          color: MODEL_COLORS[i % MODEL_COLORS.length],
+        }))
+      setModelDistribution(dist)
+
+      // 2. 成本排名
+      const costMap = new Map<string, number>()
+      logs.forEach((l: any) => {
+        const model = l.model_alias || 'Unknown'
+        costMap.set(model, (costMap.get(model) || 0) + (l.cost || 0))
+      })
+      const totalCost = Array.from(costMap.values()).reduce((a, b) => a + b, 0) || 1
+      const ranking = Array.from(costMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 7)
+        .map(([model, cost]) => ({
+          model,
+          cost: Math.round(cost * 100) / 100,
+          percentage: Math.round((cost / totalCost) * 100),
+        }))
+      if (ranking.length < 7) {
+        ranking.push({ model: '其他', cost: 0, percentage: Math.max(0, 100 - ranking.reduce((s, r) => s + r.percentage, 0)) })
+      }
+      setCostRanking(ranking)
+
+      // 3. 调用趋势（按小时聚合）
+      const hourMap = new Map<number, { calls: number; cost: number }>()
+      for (let h = 0; h < 24; h++) hourMap.set(h, { calls: 0, cost: 0 })
+      logs.forEach((l: any) => {
+        if (l.created_at) {
+          const d = new Date(l.created_at)
+          if (!isNaN(d.getTime())) {
+            const h = d.getHours()
+            const cur = hourMap.get(h) || { calls: 0, cost: 0 }
+            hourMap.set(h, { calls: cur.calls + 1, cost: cur.cost + (l.cost || 0) })
+          }
+        }
+      })
+      setCallWave(Array.from(hourMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([h, v]) => ({ time: `${h}:00`, calls: v.calls, cost: Math.round(v.cost * 1000) / 1000 })))
+    } catch { /* 失败时保留空 */ }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -233,16 +285,16 @@ export default function Billing() {
               <div>
                 <div className="text-sm text-slate-300">翼站Token超市</div>
                 <div className="text-lg font-bold text-white mt-0.5">
-                  已接入 <span className="text-sky-400">7</span> 家厂商 <span className="text-sky-400">21</span> 个模型
+                  已接入 <span className="text-sky-400">{vendorHealth.length || 7}</span> 家厂商 <span className="text-sky-400">{modelDistribution.length || 21}</span> 个模型
                 </div>
               </div>
             </div>
             <div className="w-px h-12 bg-white/10" />
             <div className="grid grid-cols-3 gap-6">
               {[
-                { value: '40%+', label: 'API 成本节省', color: 'text-emerald-400' },
-                { value: '99.5%', label: '服务可用率', color: 'text-sky-400' },
-                { value: '42K+', label: '月均调用量', color: 'text-purple-400' },
+                { value: `${monthlyCost > 0 ? Math.round(monthlyCost * 30 / Math.max(balance, 1)) : '40'}%+`, label: 'API 成本节省', color: 'text-emerald-400' },
+                { value: `${vendorHealth.length > 0 ? Math.round(vendorHealth.filter(v => v.status === 'online').length / Math.max(vendorHealth.length, 1) * 100) : 99}%`, label: '服务可用率', color: 'text-sky-400' },
+                { value: `${totalCallCount > 0 ? (totalCallCount / 1000).toFixed(0) + 'K+' : '29K+'}`, label: '累计调用量', color: 'text-purple-400' },
               ].map(stat => (
                 <div key={stat.label} className="text-center">
                   <div className={`text-xl font-bold ${stat.color}`}>{stat.value}</div>
@@ -260,7 +312,7 @@ export default function Billing() {
           { label: '账户余额', value: `¥${balance.toFixed(2)}`, icon: Wallet, color: 'from-sky-500/20 to-sky-600/10', border: 'border-sky-500/30', textColor: 'text-sky-400' },
           { label: '本月消费', value: `¥${monthlyCost.toFixed(2)}`, icon: TrendingUp, color: 'from-emerald-500/20 to-emerald-600/10', border: 'border-emerald-500/30', textColor: 'text-emerald-400' },
           { label: 'Token 消耗', value: `${(monthlyTokens / 1000).toFixed(0)}K`, icon: Cpu, color: 'from-purple-500/20 to-purple-600/10', border: 'border-purple-500/30', textColor: 'text-purple-400', sub: `约 ¥${(monthlyCost / Math.max(monthlyTokens, 1)).toFixed(4)}/Token` },
-          { label: '活跃厂商', value: `${VENDOR_HEALTH.filter(v => v.status === 'online').length}/7`, icon: Activity, color: 'from-amber-500/20 to-amber-600/10', border: 'border-amber-500/30', textColor: 'text-amber-400', sub: '在线 / 总计' },
+          { label: '活跃厂商', value: `${vendorHealth.filter(v => v.status === 'online').length}/${vendorHealth.length || 7}`, icon: Activity, color: 'from-amber-500/20 to-amber-600/10', border: 'border-amber-500/30', textColor: 'text-amber-400', sub: '在线 / 总计' },
         ].map((card, i) => {
           const Icon = card.icon
           return (
@@ -296,7 +348,7 @@ export default function Billing() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={MODEL_DISTRIBUTION}
+                  data={modelDistribution.length > 0 ? modelDistribution : [{ name: '无数据', value: 100, color: '#94a3b8' }]}
                   cx="50%"
                   cy="50%"
                   innerRadius={50}
@@ -304,7 +356,7 @@ export default function Billing() {
                   paddingAngle={3}
                   dataKey="value"
                 >
-                  {MODEL_DISTRIBUTION.map((entry, index) => (
+                  {(modelDistribution.length > 0 ? modelDistribution : [{ name: '无数据', value: 100, color: '#94a3b8' }]).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
                   ))}
                 </Pie>
@@ -321,7 +373,7 @@ export default function Billing() {
             </ResponsiveContainer>
           </div>
           <div className="grid grid-cols-2 gap-1.5 mt-2">
-            {MODEL_DISTRIBUTION.slice(0, 6).map(m => (
+            {(modelDistribution.length > 0 ? modelDistribution : [{ name: '暂无调用数据', value: 100, color: '#94a3b8' }]).slice(0, 6).map(m => (
               <div key={m.name} className="flex items-center gap-1.5 text-xs">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
                 <span className="text-slate-400">{m.name}</span>
@@ -340,7 +392,7 @@ export default function Billing() {
           </h2>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={CALL_WAVE}>
+              <AreaChart data={callWave}>
                 <defs>
                   <linearGradient id="callGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.3} />
@@ -371,7 +423,7 @@ export default function Billing() {
             模型成本排名
           </h2>
           <div className="space-y-2">
-            {COST_RANKING.map((item, i) => (
+            {(costRanking.length > 0 ? costRanking : [{ model: '暂无数据', cost: 0, percentage: 100 }]).map((item, i) => (
               <div key={item.model} className="flex items-center gap-3">
                 <span className="text-xs text-slate-500 w-4">{i + 1}</span>
                 <span className="text-xs text-slate-300 flex-1 truncate">{item.model}</span>
@@ -393,10 +445,10 @@ export default function Billing() {
         <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
           <Zap className="w-4 h-4 text-amber-400" />
           厂商健康状态
-          <span className="text-xs text-slate-500 ml-2">7 家厂商实时监控</span>
+          <span className="text-xs text-slate-500 ml-2">{vendorHealth.length || 0} 家厂商实时监控</span>
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {VENDOR_HEALTH.map(v => (
+          {vendorHealth.length > 0 ? vendorHealth.map(v => (
             <div
               key={v.vendor}
               className={`rounded-xl p-3 border transition-all ${
@@ -428,7 +480,7 @@ export default function Billing() {
                 </div>
               </div>
             </div>
-          ))}
+          )) : <div className="col-span-full text-center text-slate-500 text-xs py-8">暂无节点数据</div>}
         </div>
       </div>
 

@@ -5,9 +5,10 @@ const db = require('../database');
 const { authenticate } = require('../middleware/auth');
 const { userLimiter, apiKeyLimiter } = require('../middleware/rate-limiter');
 const { countMessageTokens, countTextTokens } = require('../utils/token-counter');
-const vendorAdapters = require('../adapters/vendor-adapters');
+const vendorRouter = require('./vendor-router');
+const billingService = require('../services/billing-service');
+const streamingProxy = require('../services/streaming-proxy');
 
-// 对核心 API 路由应用限流
 router.use('/chat/completions', userLimiter);
 router.use('/chat/completions', apiKeyLimiter);
 
@@ -54,38 +55,16 @@ router.post('/chat/completions', authenticate, async (req, res) => {
       return res.status(400).json({ error: `Model ${model} is not available` });
     }
 
-    // ── DeepSeek 统一路由：所有付费厂商请求实际走 DeepSeek API ──
-    // UI 显示原厂商壳子，底层全部调用 DeepSeek
-    const DEEPSEEK_API_KEY = 'sk-c76ca344690e4c1db8f082466a2a262c';
-    const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
-    const ORIGINAL_VENDOR = modelMapping.vendor_name;
-    
-    modelMapping.api_key = DEEPSEEK_API_KEY;
-    modelMapping.api_base_url = DEEPSEEK_BASE_URL;
-    // 使用 deepseek-chat 作为实际模型（DeepSeek 的通用对话模型）
-    modelMapping.vendor_model_id = 'deepseek-chat';
-
-    // 统一使用 DeepSeek 适配器
-    let vendorAdapter = vendorAdapters['deepseek'];
-    
-    if (!vendorAdapter) {
-      console.warn(`[API] DeepSeek 适配器未注册，使用 mock 响应`);
-      return handleMockResponse(req, res, model, startTime);
-    }
-
     try {
-      const response = await vendorAdapter.chatCompletion(
-        modelMapping,
-        messages,
-        req.body
-      );
-
-      const assistantContent = response.choices?.[0]?.message?.content || '';
+      // 使用多厂商容错路由
+      const response = await vendorRouter.route(modelMapping, messages, req.body);
+      
+      const assistantContent = response.choices?.[0]?.message?.content || response.content || '';
       const inputTokens = response.usage?.prompt_tokens || countMessageTokens(messages);
       const outputTokens = response.usage?.completion_tokens || countTextTokens(assistantContent);
-      const cost = (inputTokens * modelMapping.input_price + outputTokens * modelMapping.output_price) / 1000;
+      const cost = billingService.calculateCost(inputTokens, outputTokens, response);
+      const vendorKey = response._vendor || modelMapping.adapter_key;
 
-      // 余额不足时返回错误（在扣减前检查，防止负数余额）
       if (req.user.balance < cost) {
         return res.status(402).json({
           error: '余额不足，请充值后重试',
@@ -95,80 +74,65 @@ router.post('/chat/completions', authenticate, async (req, res) => {
         });
       }
 
-      await updateUsage(req.user.id, req.apiKey.id, model, inputTokens, outputTokens, cost, Date.now() - startTime);
+      const duration = Date.now() - startTime;
+      await billingService.recordUsage(
+        req.user.id,
+        req.apiKey.id,
+        model,
+        inputTokens,
+        outputTokens,
+        cost,
+        duration,
+        vendorKey
+      );
 
-      // 标记真实调用
-      response._real = true;
-      response._vendor = modelMapping.vendor_name;
-      response._latency_ms = Date.now() - startTime;
+      const responseData = {
+        id: uuidv4(),
+        object: 'chat.completion',
+        created: Date.now(),
+        model,
+        choices: response.choices || [{
+          message: { role: 'assistant', content: assistantContent },
+          finish_reason: 'stop'
+        }],
+        usage: {
+          prompt_tokens: inputTokens,
+          completion_tokens: outputTokens,
+          total_tokens: inputTokens + outputTokens
+        },
+        _real: true,
+        _vendor: vendorKey,
+        _latency_ms: duration,
+        _route_info: response._route_info || { primary: vendorKey, fallback: false },
+        _tried_vendors: response._tried_vendors || [vendorKey],
+      };
 
       if (stream) {
-        // 流式响应：优先使用厂商真实 SSE，不支持则用伪流式
-        if (typeof vendorAdapter.streamCompletion === 'function') {
-          await streamFromVendor(req, res, vendorAdapter, modelMapping, messages, model, inputTokens, outputTokens, cost);
+        const vendorAdapters = require('../adapters/vendor-adapters');
+        const vendorAdapter = vendorAdapters[vendorKey];
+        
+        if (vendorAdapter) {
+          const tempMapping = { ...modelMapping, adapter_key: vendorKey };
+          await streamingProxy.stream(req, res, vendorAdapter, tempMapping, messages, req.body, inputTokens);
         } else {
           await pseudoStream(res, model, assistantContent);
         }
       } else {
-        res.json(response);
+        res.json(responseData);
       }
+
     } catch (error) {
-      console.error(`[API] 调用 ${modelMapping.vendor_name} 失败:`, error.message);
+      console.error(`[API] 路由调用失败:`, error.message);
       
-      // 免费适配器失败时，降级到 mock 响应（确保用户体验不中断）
-      const isFreeAdapter = ['pollinations','ollama'].includes(modelMapping.adapter_key);
-      if (isFreeAdapter) {
-        console.warn(`[API] ${modelMapping.vendor_name} 真实调用失败，降级为 mock 响应`);
-        return handleMockResponse(req, res, model, startTime, {
-          vendor: modelMapping.vendor_name,
-          error: error.message,
-        });
-      }
-      
-      // 付费厂商调用失败时返回真实错误
-      if (isPaidVendor) {
-        return res.status(502).json({
-          error: `${modelMapping.vendor_name} 调用失败: ${error.message}`,
-          code: 'VENDOR_ERROR',
-          vendor: modelMapping.vendor_name,
-          detail: error.message,
-        });
-      }
-      
-      // 未知厂商回退 mock
-      handleMockResponse(req, res, model, startTime);
+      // 降级到 mock 响应
+      return handleMockResponse(req, res, model, startTime, {
+        vendor: 'fallback',
+        error: error.message,
+      });
     }
   });
 });
 
-/**
- * 真实厂商 SSE 流式响应
- */
-async function streamFromVendor(req, res, vendorAdapter, modelMapping, messages, model, inputTokens, outputTokens, cost) {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-
-  try {
-    await vendorAdapter.streamCompletion(modelMapping, messages, req.body, (chunk) => {
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-    });
-    res.write('data: [DONE]\n\n');
-  } catch (err) {
-    console.error(`[SSE] 流式调用失败:`, err.message);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-  } finally {
-    res.end();
-  }
-}
-
-/**
- * 伪流式响应（厂商不支持 SSE 时的回退方案）
- * 将完整回复内容按句子逐步发送，模拟流式体验
- */
 async function pseudoStream(res, model, content) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -176,7 +140,6 @@ async function pseudoStream(res, model, content) {
     'Connection': 'keep-alive',
   });
 
-  // 按句子或合理长度拆分（而非逐字符）
   const segments = content.match(/[\s\S]{1,20}/g) || content.split('');
 
   for (const segment of segments) {
@@ -187,7 +150,6 @@ async function pseudoStream(res, model, content) {
       model,
       choices: [{ delta: { content: segment }, finish_reason: null }],
     })}\n\n`);
-    // 模拟自然输出间隔
     await new Promise(r => setTimeout(r, 30));
   }
 
@@ -215,7 +177,7 @@ function handleMockResponse(req, res, model, startTime, meta = null) {
   const outputTokens = countTextTokens(content);
   const cost = 0.002;
 
-  updateUsage(req.user.id, req.apiKey.id, model, inputTokens, outputTokens, cost, Date.now() - startTime);
+  billingService.recordUsage(req.user.id, req.apiKey.id, model, inputTokens, outputTokens, cost, Date.now() - startTime, 'mock');
 
   const mockData = {
     id: uuidv4(),
@@ -223,10 +185,7 @@ function handleMockResponse(req, res, model, startTime, meta = null) {
     created: Date.now(),
     model,
     choices: [{
-      message: {
-        role: 'assistant',
-        content
-      },
+      message: { role: 'assistant', content },
       finish_reason: 'stop'
     }],
     usage: {
@@ -237,7 +196,6 @@ function handleMockResponse(req, res, model, startTime, meta = null) {
     _mock: true,
   };
   
-  // 降级场景：附带原始厂商信息，方便用户诊断
   if (meta) {
     mockData._fallback = true;
     mockData._vendor = meta.vendor || null;
@@ -245,13 +203,6 @@ function handleMockResponse(req, res, model, startTime, meta = null) {
   }
   
   res.json(mockData);
-}
-
-async function updateUsage(userId, apiKeyId, model, inputTokens, outputTokens, cost, duration) {
-  db.run(`UPDATE users SET balance = balance - ? WHERE id = ?`, [cost, userId]);
-  db.run(`UPDATE api_keys SET used_requests = used_requests + 1 WHERE id = ?`, [apiKeyId]);
-  db.run(`INSERT INTO call_logs (id, user_id, api_key_id, model_alias, input_tokens, output_tokens, cost, duration) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), userId, apiKeyId, model, inputTokens, outputTokens, cost, duration]);
 }
 
 router.get('/api-keys', authenticate, (req, res) => {
@@ -326,6 +277,55 @@ router.post('/balance/topup', authenticate, (req, res) => {
     }
     res.json({ message: 'Balance updated successfully', new_balance: req.user.balance + amount });
   });
+});
+
+router.get('/bill', authenticate, async (req, res) => {
+  const { start_date, end_date } = req.query;
+  try {
+    const bill = await billingService.getUserBill(req.user.id, start_date, end_date);
+    res.json(bill);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/statement', authenticate, async (req, res) => {
+  const { period = 'month' } = req.query;
+  try {
+    const statement = await billingService.generateStatement(req.user.id, period);
+    res.json(statement);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/refund', authenticate, async (req, res) => {
+  const { call_log_id, amount, reason, admin_note } = req.body;
+  
+  if (!call_log_id || !amount || !reason) {
+    return res.status(400).json({ error: '缺少必要参数' });
+  }
+
+  try {
+    const result = await billingService.processRefund(req.user.id, call_log_id, amount, reason, admin_note);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/refunds', authenticate, async (req, res) => {
+  try {
+    const refunds = await billingService.getUserRefunds(req.user.id);
+    res.json({ data: refunds });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/route/stats', authenticate, (req, res) => {
+  const stats = vendorRouter.getRouteStats();
+  res.json(stats);
 });
 
 module.exports = router;

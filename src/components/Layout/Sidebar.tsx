@@ -29,7 +29,7 @@ const commonMenuItems = [
   { id: 'agents', icon: Bot, label: '天翼智脑' },
   { id: 'dashboard', icon: LayoutDashboard, label: '仪表盘' },
   { id: 'compare', icon: Store, label: 'Agent市场' },
-  { id: 'office', icon: Monitor, label: '员工实况' },
+  { id: 'office', icon: Monitor, label: '天翼工作间' },
   { id: 'models', icon: Layers, label: '模型市场' },
   { id: 'skills', icon: Wand2, label: '技能资产库' },
   { id: 'kb', icon: BookOpen, label: '知识库' },

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Layers, MessageSquare, TrendingUp, Clock, Activity, Cpu, BarChart3 } from 'lucide-react'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 import { api } from '@/lib/api'
@@ -101,22 +101,30 @@ export default function Dashboard() {
     }
   }
 
+  // 今日调用量 — useMemo 必须在条件 return 之前
+  const todayCalls = useMemo(() => {
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+    return recentLogs.filter(log => {
+      if (!log.created_at) return false
+      return log.created_at.startsWith(todayStr)
+    }).length
+  }, [recentLogs])
+  // Token 消耗从全部日志汇总
+  const totalTokens = recentLogs.reduce((sum, log) => sum + (log.input_tokens || 0) + (log.output_tokens || 0), 0)
+  const statValues = {
+    calls: todayCalls,
+    tokens: totalTokens,
+    users: stats?.user_count || 0,
+    keys: stats?.api_key_count || 0,
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-12 h-12 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
       </div>
     )
-  }
-
-  const todayCalls = stats?.call_count || 0
-  // Token 消耗从 call_logs 汇总
-  const totalTokens = recentLogs.reduce((sum, log) => sum + (log.input_tokens || 0) + (log.output_tokens || 0), 0)
-  const statValues = {
-    calls: stats?.call_count || todayCalls,
-    tokens: totalTokens,
-    users: stats?.user_count || 0,
-    keys: stats?.api_key_count || 0,
   }
 
   return (

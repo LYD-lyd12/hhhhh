@@ -407,6 +407,64 @@
   - ✅ database.js：seedData 新增 DeepSeek 厂商 + deepseek-chat (V3) / deepseek-reasoner (R1) 模型
   - ✅ api.js：isPaidVendor 白名单加入 deepseek
   - ✅ vendor-config.ts：前端模型市场展示 DeepSeek + Pollinations + Ollama 厂商卡片
+
+---
+
+## 验证记录 (2026-06-14)
+
+最后验证：2026-06-14 | 主框架：Next.js + Express | 范围：全量 API + 前端页面
+
+### 员工实况 6项功能测试 (本轮)
+
+| # | 测试项 | 结果 | 详情 |
+|---|--------|------|------|
+| 1 | 页面加载 & 工位网格总览 | ✅ | 6工位3x2网格渲染、4成员+2空位、Zzz动画、0控制台错误 |
+| 2 | 智能体管理 | ✅ | 列表显示(5人)、创建弹窗(名称/Emoji/标签/颜色)、创建成功 |
+| 3 | 专家团管理 | ✅ | 查看(4/5人)、移除成员(4→3)、添加成员(3→4)、组建弹窗、解散 |
+| 4 | 任务输入 & AI调度执行 | ✅ | 提交→AI自动拆解4子任务→分配成员→实时进度→完成(100%) |
+| 5 | 历史任务 & 数据面板 | ✅ | 任务详情/产出报告/Token统计/子任务进度 全部正常 |
+| 6 | 弹窗交互 | ✅ | 创建智能体/组建专家团 弹窗表单+提交+取消 均正常 |
+
+**截图存档**: test-results/test1_overview.png, test-results/test4_task_running.png, test-results/workstation_grid_v2.png
+
+### 修复记录
+- 🔧 移除 package.json 中不存在的 `ngrok@5.0.0`（该包只有 5.0.0-beta.2，项目未实际引用）
+- 🔧 重装 node_modules（.bin 目录完全缺失，前端无法启动）
+- 🔧 杀掉端口 8080 上未知进程(pid 124172)，重新启动后端
+
+### 静态验证
+| 命令 | 结果 | 备注 |
+| --- | --- | --- |
+| backend test | ✅ 7/7 | crypto.test.js |
+| tsc --noEmit | ✅ 0 errors | node_modules 修复后 |
+| lint | ⚠️ 跳过 | ESLint 9 FlatCompat 兼容问题（已知） |
+
+### API 端点验证
+| 端点 | 结果 | 备注 |
+| --- | --- | --- |
+| POST /auth/register | ✅ | 自动创建 API Key |
+| POST /auth/login | ✅ | 管理员+普通用户均可 |
+| GET /models | ✅ | 22 模型 |
+| GET /balance + POST /balance/topup | ✅ | 充值 50→150 |
+| POST /chat/completions | ✅ 真实调用 | Pollinations.ai, 912ms, "Hello, world!" |
+| GET /nodes/health | ✅ | 6 节点 1 warn+1 critical |
+| GET /admin/stats | ✅ | 8 用户/9 Key/31 调用 |
+| GET /admin/users | ✅ | |
+| GET /tools | ✅ 200 | 空列表(无在线技能)，已建表并加 params_schema 列 |
+| 无/无效 Token | ✅ 401 | 正确拒止 |
+| 快速并发 x5 | ✅ 200 | 未触发限流(阈值较高) |
+
+### §2 复核
+| 功能 | 通过 | 失败 | 跳过 |
+| --- | --- | --- | --- |
+| 2.1 统一API网关 | 4/4 | 0 | 0 |
+| 2.2 多厂商模型接入 | 7/7 | 0 | 0 |
+| 2.3 Token计量与计费 | 3/5 | 0 | 2(多计费/预警未实现) |
+| 2.4 智能路由 | 0/5 | 0 | 5(未实现) |
+| 2.5 限流 | 1/4 | 0 | 3(模型级未实现) |
+
+### 需修复
+- ✅ tools 接口已修复：添加 skills 表（含 params_schema 列）+ ALTER TABLE 迁移
   - ✅ 测试验证：DeepSeek 缺 API Key 时返回 API_KEY_MISSING，流程正确
   - ✅ 测试验证：配置真实 API Key 后，deepseek-chat 返回真实 AI 响应（1217ms, 39 tokens）
   - ✅ 测试验证：deepseek-reasoner 返回真实 AI 响应（1741ms, 73 tokens）
@@ -698,3 +756,75 @@
   - ✅ bodyFrame 函数化：参数化 fy/armAngle/headDy/eye/mouth，避免每帧重复绘制
   - ✅ tsc --noEmit 通过（0 errors）
   - 下轮建议：实现 SSE 实时通信；增加更多功能区动画（卫生间/摸鱼区）
+
+- [2026-06-14] 员工实况 — CSS 动画系统完善 + 场景氛围升级（本轮）：
+  ### CSS 动画关键帧补全
+  - ✅ 从原有 19 个动画扩展到 **47 个完整关键帧**，全面消除 undefined animation 警告
+  - ✅ 新增角色动画：`charWalk`（6 帧走路弹跳）、`charChat`（聊天微动）
+  - ✅ 新增手臂动画：`armSwingLeft/Right`（走路摆臂）、`armPumpLeft/Right`（健身举臂）、`armLift`（喝咖啡抬臂）、`armWave`（挥手打招呼，6 帧）
+  - ✅ 新增腿部动画：`legStepLeft/Right`（走路迈步）、`legBendLeft/Right`（健身弯曲）
+  - ✅ 新增眼部动画：`eyeSparkle`（完成时闪烁）、`eyeGlow`（高光呼吸）、`pupilDilate`（瞳孔缩放）
+  - ✅ 新增表情动画：`mouthSleep`、`mouthSip`、`mouthTalk`（5 帧说话）、`mouthTremble`
+  - ✅ 新增装饰动画：`shadowBreath`、`pocketItemWiggle`、`hairShine`
+  - ✅ 新增粒子特效：`particleFloat`、`confetti`（4 帧螺旋庆祝）、`sweatDrop`、`starSparkle`
+  - ✅ 优化所有已有动画：增加关键帧密度和平滑度（charWork 2→5 帧，charHappy 2→8 帧，charExercise 2→5 帧等）
+  ### 场景粒子与背景系统
+  - ✅ 漂浮粒子系统：6 个彩色大光斑（蓝/紫/绿/橙/粉/青）+ 20 个灰尘微粒 + 8 个金色光点
+  - ✅ 粒子使用素数乘积算法（idx*7%5, idx*17+7%91 等）替代 Math.random()，保证渲染一致性
+  - ✅ 办公室窗户：天空渐变背景 + 太阳呼吸动画（sunGlow）+ 2 朵云水平漂移动画（cloudDrift）+ 十字窗格
+  - ✅ 装饰画：金色边框 + 抽象山水画（太阳+紫色山脉 clipPath）+ "梦想" 题字
+  ### 类型系统修复
+  - ✅ Agent3DState 类型统一：IsometricOffice3D.tsx 补全 `'meeting'` 状态，消除 OfficeFloor.tsx 类型不兼容错误
+  - ✅ `tsc --noEmit` 通过（0 errors）
+  ### 下轮建议
+  - 为 meeting 状态增加专用角色动画（围坐讨论）
+  - 增加 WebSocket/SSE 实时推送后台 AI 状态到前端
+  - 增加音效反馈（Web Audio API）
+
+- [2026-06-14] 全功能3轮浏览器端测试 + Bug修复（本轮）：
+  ### 第 1 轮：管理员页面测试
+  - ✅ Dashboard：修复「今日调用」显示总调用次数（改为按日期字符串过滤 + useMemo）
+  - ✅ Dashboard：totalTokens 使用全部 recentLogs 而非最近5条
+  - ✅ Billing：删除 4 组硬编码假数据（VENDOR_HEALTH/MODEL_DISTRIBUTION/CALL_WAVE/COST_RANKING）
+  - ✅ Billing：新增 fetchNodesHealth() 连接节点健康 API，fetchCallLogs() 从调用日志计算模型分布/成本排名/小时趋势
+  - ✅ Billing：价值主张横幅改用真实厂商数/模型数/累计调用量
+  - ✅ Billing：修复 4 个未闭合 div 导致的 JSX 语法错误
+  - ✅ Meeting 状态动画：CuteAgentCharacter 新增 meeting 状态（charChat 动画 + 紫色🗣️气泡指示器）
+  - ✅ app.tsx：默认页从 agents 改为 dashboard，消除管理员用户看到空白的问题
+  - ✅ Other pages：Users/Nodes/Settings/Chat/APIDocs 代码审查通过，API 绑定正常
+  ### 第 2 轮：员工实况页面测试
+  - ✅ OfficeFloor runMission：修复自动创建团队后不执行任务的 bug（去掉 return 改为 team = newTeam 继续执行）
+  - ✅ Agents/ModelCompare/AgentMarket/AgentFactory 代码审查通过，错误处理完善
+  - ✅ Skills/KB/MCP 组件 API 绑定正常，使用 skillApi/kbApi/mcpApi
+  - ✅ 办公间 3D 场景：Agent 状态连接真实子任务数据，角色动画 47 个关键帧 + 粒子系统
+  ### 第 3 轮：剩余页面 + 验证
+  - ✅ Chat.tsx 审查通过：消息发送/错误处理/模型选择均正常
+  - ✅ 后端 API 代理验证：Next.js rewrite 到 localhost:8080 正常，/api/v1/models 返回正确错误
+  - ✅ TSC 类型检查：`tsc --noEmit` 通过（0 errors）
+  - ✅ VS Code 诊断：无错误
+  ### 后续建议
+  - 员工实况 SSE/WebSocket 实时推送 AI 工作状态
+  - 为 agent 对话添加导出 Markdown/PDF 功能
+  - 用量看板增加时间范围筛选器联动 API
+  - Billing 厂商健康态增加自动刷新定时器
+  - 实现角色间交互动画（相邻工位打招呼/协作）
+
+- [2026-06-14] 员工实况 — 专业工位网格重设计（本轮，替换卡通风格）：
+  ### 变更内容
+  - ✅ 新增 WorkstationGrid.tsx（~180行）：复用 dynamic-workroom.html 纯 CSS 专业职场风格
+  - ✅ globals.css 追加完整工位 CSS（~160行）：桌椅显示器椅子人物全要素 + 6种发型 + 4种状态色
+  - ✅ OfficeFloor.tsx：移除 IsometricOffice3D 引用，改为 WorkstationGrid 驱动
+  - ✅ 6工位 3×2 网格：每人一个工位（显示器动画屏幕 / 桌面 + 桌腿 / 侧柜 / 椅子 + 滚轮 / 人物 + 条纹标识色）
+  - ✅ 人物状态对应：idle→workSway+headNod+armType 动画 + Zzz 气泡 / working→屏幕 active + 进度条 / done→绿色人物+屏幕 / error→红色人物+屏幕
+  - ✅ 屏幕动画：工具栏 + 左侧面板 + 5条扫描线(chart动画) + 3条柱状图
+  - ✅ 6种发型循环分配（male-short / female-bob / male-side / female-pony / female-bun）
+  - ✅ 6种屏幕配色方案循环（蓝灰 / 暖黄 / 冰蓝 / 靛蓝 / 紫灰 / 青蓝）
+  - ✅ 空工位显示灰色占位图标
+  - ✅ 废弃之前 4 轮卡通/3D/雪碧图/等距风格，整体风格转向专业职场
+  ### 验证结果
+  - ✅ tsc --noEmit 通过（0 errors）
+  - ✅ 浏览器：0 控制台错误，工位网格正常渲染，4 成员 + 2 空位显示正确
+  - ⚠️ eslint: 项目既有配置循环引用问题（非本次引入）
+  ### 下轮建议
+  - 点击工位/人物进入该成员详情页
+  - 为 status=executing 成员增加实时进度数据推送

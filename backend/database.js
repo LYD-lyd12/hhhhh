@@ -99,15 +99,42 @@ function createTables() {
       output_tokens INTEGER DEFAULT 0,
       cost REAL DEFAULT 0,
       duration INTEGER DEFAULT 0,
+      vendor_key TEXT,
       status TEXT DEFAULT 'success',
       error_message TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
   _db.run(`
+    CREATE TABLE IF NOT EXISTS refunds (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      call_log_id TEXT,
+      amount REAL DEFAULT 0,
+      reason TEXT,
+      admin_note TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (call_log_id) REFERENCES call_logs(id)
+    )
+  `);
+  _db.run(`
     CREATE TABLE IF NOT EXISTS system_settings (
       key TEXT PRIMARY KEY,
       value TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS skills (
+      id TEXT PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      display_name TEXT,
+      description TEXT,
+      params_schema TEXT,
+      status TEXT DEFAULT 'offline',
+      created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `);

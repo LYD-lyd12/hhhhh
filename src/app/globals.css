@@ -125,7 +125,7 @@ body::before {
   font-size: 11px !important;
 }
 
-/* ─── 员工实况 气泡浮动 ─────────────────────── */
+/* ─── 天翼工作间 气泡浮动 ─────────────────────── */
 @keyframes bubble-float {
   0% { opacity: 0; transform: translateY(8px) scale(0.8); }
   15% { opacity: 1; transform: translateY(0) scale(1); }
@@ -133,19 +133,19 @@ body::before {
   100% { opacity: 0; transform: translateY(-36px) scale(0.7); }
 }
 
-/* ─── 员工实况 头像弹性跳动（不用 transform 避免跟3D冲突）── */
+/* ─── 天翼工作间 头像弹性跳动（不用 transform 避免跟3D冲突）── */
 @keyframes avatar-bounce {
   0%, 100% { margin-top: 0; }
   50% { margin-top: -6px; }
 }
 
-/* ─── 员工实况 头像浮动 ─────────────────────── */
+/* ─── 天翼工作间 头像浮动 ─────────────────────── */
 @keyframes avatar-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
 }
 
-/* ─── 员工实况 光环脉冲 ─────────────────────── */
+/* ─── 天翼工作间 光环脉冲 ─────────────────────── */
 @keyframes ring-pulse {
   0%, 100% { transform: scale(0.95); opacity: 0.4; }
   50% { transform: scale(1.12); opacity: 0.7; }
@@ -158,7 +158,7 @@ body::before {
 }
 
 /* ══════════════════════════════════════════════
-   员工实况 — 走路动画关键帧
+   天翼工作间 — 走路动画关键帧
    ══════════════════════════════════════════════ */
 
 /* 走路上下弹跳 */
@@ -203,14 +203,14 @@ body::before {
   50% { transform: translateY(-3px); }
 }
 
-/* 员工实况 — 头像走路弹跳 */
+/* 天翼工作间 — 头像走路弹跳 */
 @keyframes avatar-bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-2px); }
 }
 
 /* ══════════════════════════════════════════════
-   员工实况 — 等距办公室 小牛马角色动画
+   天翼工作间 — 等距办公室 小牛马角色动画
    ══════════════════════════════════════════════ */
 
 /* 工作状态：轻微上下弹跳 + 微晃 */
@@ -319,3 +319,1119 @@ body::before {
   100% { transform: translateY(-60px) translateX(-5px); opacity: 0; }
 }
 .animate-float-particle { animation: float-particle 6s ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════════════════
+   工位网格 — dynamic-workroom.html 1:1 CSS 复刻
+   ═══════════════════════════════════════════════════════ */
+
+/* 容器 */
+.ws-stage {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: radial-gradient(ellipse at 20% 18%, rgba(0,0,0,.035), transparent 28%), radial-gradient(ellipse at 76% 78%, rgba(0,0,0,.035), transparent 32%), linear-gradient(145deg, #fff 0%, #fbfbfb 62%, #f5f5f3 100%);
+  display: flex;
+  flex-direction: column;
+  padding: 2% 3%;
+  overflow: hidden;
+}
+
+/* 3x2 网格 */
+.ws-room {
+  flex: 1;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 7.2% 9.5%;
+}
+
+/* 工位 */
+.ws-station {
+  position: relative;
+  min-width: 0;
+  filter: drop-shadow(-32px 28px 22px rgba(46,50,52,.16));
+}
+
+/* 阴影 */
+.ws-shadow {
+  position: absolute;
+  left: 0; top: 46%; width: 80%; height: 44%;
+  background: radial-gradient(ellipse at 44% 30%, rgba(40,45,47,.16), transparent 43%), radial-gradient(ellipse at 28% 58%, rgba(40,45,47,.1), transparent 54%);
+  filter: blur(8px);
+  transform: rotate(-12deg);
+  z-index: -1;
+}
+
+/* 桌子 */
+.ws-desk {
+  position: absolute;
+  left: 6%; right: 3%; top: 33%; height: 11%;
+  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(239,239,235,.98)), #f8f8f6;
+  border: 1px solid rgba(231,231,228,.9);
+  border-radius: 2px;
+  box-shadow: inset 0 2px 4px rgba(255,255,255,.92), inset 0 -5px 8px rgba(210,210,205,.28), 0 12px 28px rgba(77,82,83,.11);
+  z-index: 1;
+}
+.ws-desk::before, .ws-desk::after {
+  content: "";
+  position: absolute;
+  top: 92%;
+  width: 2.2%; height: 118%;
+  background: linear-gradient(90deg, #f9f9f7, #d9d9d6 50%, #f7f7f5);
+  border-radius: 99px;
+  box-shadow: -7px 12px 10px rgba(60,64,66,.14);
+}
+.ws-desk::before { left: 5%; }
+.ws-desk::after { right: 4%; }
+
+/* 侧柜 */
+.ws-side-cabinet {
+  position: absolute;
+  right: 4.5%; top: 43%; width: 20%; height: 31%;
+  background: linear-gradient(145deg, #fff, #e6e6e2 78%);
+  border: 1px solid #deded9;
+  border-radius: 2px;
+  box-shadow: inset 4px 4px 8px rgba(255,255,255,.86), inset -5px -7px 10px rgba(190,190,185,.25), 12px 16px 22px rgba(58,62,64,.11);
+  z-index: 1;
+}
+.ws-side-cabinet::before {
+  content: "";
+  position: absolute;
+  left: 12%; right: 12%; top: 43%; height: 2px;
+  background: linear-gradient(90deg, transparent, #cdcdc7, transparent);
+  box-shadow: 0 13px 0 rgba(205,205,199,.75);
+}
+
+/* 显示器 */
+.ws-monitor {
+  position: absolute;
+  left: 28%; top: 0; width: 44%; height: 29%;
+  background: linear-gradient(145deg, #f5f6f6, #cfd3d5);
+  border: .42vw solid #d7dadc;
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(255,255,255,.9), 0 7px 0 rgba(150,154,157,.3), -12px 18px 18px rgba(51,55,57,.14);
+  overflow: hidden;
+  animation: ws-monitorPulse 5s ease-in-out infinite;
+  z-index: 1;
+}
+.ws-monitor::after {
+  content: "";
+  position: absolute;
+  left: 47%; bottom: -22%; width: 6%; height: 22%;
+  background: linear-gradient(90deg, #f5f5f4, #afb4b8, #f8f8f7);
+  box-shadow: 0 10px 9px rgba(60,64,66,.12);
+}
+
+/* 屏幕 */
+.ws-screen {
+  width: 100%; height: 100%;
+  background: #5a9cf3;
+  position: relative;
+  overflow: hidden;
+}
+.ws-toolbar {
+  position: absolute;
+  left: 23%; top: 19%; width: 55%; height: 12%;
+  background: #f7f9ff;
+  border-bottom: 1px solid #d5dce9;
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 2px 8px rgba(31,64,112,.14);
+}
+.ws-pane {
+  position: absolute;
+  left: 25%; top: 34%; width: 13%; height: 45%;
+  border: 1px solid #d1dced;
+}
+.ws-line {
+  position: absolute;
+  left: 42%;
+  height: 4%;
+  border-radius: 20px;
+  animation: ws-scanLine 2.8s ease-in-out infinite;
+}
+.ws-line:nth-child(3) { top: 38%; }
+.ws-line:nth-child(4) { top: 48%; }
+.ws-line:nth-child(5) { top: 58%; }
+.ws-line:nth-child(6) { top: 68%; }
+.ws-line:nth-child(7) { top: 78%; }
+.ws-chart {
+  position: absolute;
+  right: 24%; bottom: 18%; width: 17%; height: 25%;
+  display: flex; align-items: flex-end; gap: 9%;
+}
+.ws-chart span {
+  flex: 1;
+  animation: ws-chartBeat 1.8s ease-in-out infinite;
+}
+.ws-chart span:nth-child(2) { animation-delay: .22s; }
+.ws-chart span:nth-child(3) { animation-delay: .44s; }
+
+/* 屏幕睡眠态 */
+.ws-screen-sleep .ws-pane { display: none; }
+.ws-screen-sleep { background: linear-gradient(180deg, #5b9af0, #3d7ed8); }
+.ws-screen-sleep::before {
+  content: "";
+  position: absolute;
+  right: 18%; top: 20%; width: 18%; height: 32%;
+  border-radius: 50%;
+  background: #f8f0b4;
+  box-shadow: -7px 0 0 #5b9af0;
+}
+.ws-screen-sleep .ws-toolbar,
+.ws-screen-sleep .ws-line,
+.ws-screen-sleep .ws-chart { display: none; }
+.ws-screen-sleep::after {
+  content: "";
+  position: absolute;
+  left: 23%; top: 26%; width: 45%; height: 34%;
+  background: linear-gradient(#15181d, #06080b);
+  border: 2px solid rgba(255,255,255,.42);
+  box-shadow: 0 4px 8px rgba(34,58,91,.16);
+}
+
+/* 屏幕完成态（绿色） */
+.ws-screen-done { background: linear-gradient(180deg, #10b981, #059669); }
+.ws-screen-done .ws-pane,
+.ws-screen-done .ws-line,
+.ws-screen-done .ws-chart span { display: none; }
+.ws-screen-done .ws-toolbar { background: rgba(255,255,255,.2); }
+
+/* 屏幕错误态（红色） */
+.ws-screen-error { background: linear-gradient(180deg, #ef4444, #dc2626); }
+.ws-screen-error .ws-pane,
+.ws-screen-error .ws-line,
+.ws-screen-error .ws-chart span { display: none; }
+.ws-screen-error .ws-toolbar { background: rgba(255,255,255,.15); }
+
+/* 屏幕会议态 */
+.ws-screen-meeting .ws-pane,
+.ws-screen-meeting .ws-line,
+.ws-screen-meeting .ws-chart span { display: none; }
+.ws-screen-meeting::before, .ws-screen-meeting::after {
+  content: "";
+  position: absolute;
+  top: 28%; width: 19%; height: 26%;
+  background: #e7efff;
+  border: 1px solid #b9c9e5;
+}
+.ws-screen-meeting::before { left: 36%; }
+.ws-screen-meeting::after { left: 58%; }
+
+/* 椅子 */
+.ws-chair {
+  position: absolute;
+  left: 35%; top: 58%; width: 30%; height: 28%;
+  background: linear-gradient(145deg, rgba(255,255,255,.97), rgba(228,228,224,.98));
+  border: 1px solid #d7d7d5;
+  border-radius: 10% 10% 4% 4%;
+  box-shadow: inset 5px 5px 10px rgba(255,255,255,.85), inset -7px -7px 10px rgba(190,190,185,.22), 13px 16px 24px rgba(53,58,60,.13);
+  z-index: 2;
+}
+.ws-chair::before, .ws-chair::after {
+  content: "";
+  position: absolute;
+  left: 48%; top: 88%; width: 4%; height: 35%;
+  background: linear-gradient(90deg, #f9f9f7, #cfd0cc, #f8f8f6);
+  border-radius: 99px;
+  transform-origin: 50% 12%;
+  box-shadow: 0 10px 12px rgba(54,58,60,.12);
+}
+.ws-chair::before { transform: rotate(36deg); }
+.ws-chair::after { transform: rotate(-36deg); }
+
+/* 滚轮 */
+.ws-caster {
+  position: absolute;
+  left: 43%; top: 88%; width: 14%; height: 14%;
+  background: radial-gradient(circle at 50% 50%, #f7f7f5 0 11%, #cfd0cc 12% 20%, transparent 21%), linear-gradient(90deg, transparent 0 46%, #d7d8d4 47% 53%, transparent 54%), linear-gradient(0deg, transparent 0 46%, #d7d8d4 47% 53%, transparent 54%);
+  border-radius: 50%;
+  opacity: .95;
+  z-index: 1;
+}
+.ws-caster::before, .ws-caster::after {
+  content: "";
+  position: absolute;
+  left: 47%; top: 4%; width: 6%; height: 92%;
+  background: #d4d5d1;
+  border-radius: 99px;
+  box-shadow: 0 48% 0 #d4d5d1;
+  transform-origin: 50% 50%;
+}
+.ws-caster::before { transform: rotate(58deg); }
+.ws-caster::after { transform: rotate(-58deg); }
+
+/* 人物 */
+.ws-person {
+  position: absolute;
+  left: 30%; top: 21%; width: 40%; height: 50%;
+  animation: ws-workSway 4.8s ease-in-out infinite;
+  transform-origin: 50% 86%;
+  z-index: 3;
+}
+
+/* 躯干 */
+.ws-torso {
+  position: absolute;
+  left: 18%; bottom: 0; width: 64%; height: 54%;
+  background: var(--accent, #42c667);
+  clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%);
+  z-index: 2;
+}
+
+/* 条纹 */
+.ws-stripe {
+  position: absolute;
+  left: 29%; top: 46%; width: 42%; height: 9%;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 2px;
+  box-shadow: inset 0 2px 3px rgba(255,255,255,.2);
+  z-index: 5;
+}
+
+/* 头 */
+.ws-head {
+  position: absolute;
+  left: 32%; top: 8%; width: 33%; height: 39%;
+  background: #f5d5b8;
+  border-radius: 48% 52% 46% 54%;
+  animation: ws-headNod 2.7s ease-in-out infinite;
+  transform-origin: 50% 100%;
+  z-index: 4;
+}
+.ws-head::before {
+  content: "";
+  position: absolute;
+  left: 4%; top: -9%; width: 88%; height: 34%;
+  background: var(--accent, #42c667);
+  border-radius: 62% 55% 34% 28%;
+}
+.ws-head::after {
+  content: "";
+  position: absolute;
+  right: -8%; top: 40%; width: 15%; height: 18%;
+  background: #f5d5b8;
+  border-radius: 50%;
+}
+
+/* 手臂 */
+.ws-arm {
+  position: absolute;
+  top: 44%; width: 20%; height: 42%;
+  background: var(--accent, #42c667);
+  border-radius: 99px;
+  transform-origin: top center;
+  z-index: 1;
+}
+.ws-arm-left {
+  left: 2%; top: 43%; width: 36%; height: 16%;
+  border-radius: 999px 999px 50% 999px;
+  transform: rotate(-4deg);
+  transform-origin: 88% 50%;
+  animation: ws-leftWork 1.72s ease-in-out infinite;
+  z-index: 3;
+}
+.ws-arm-left::after {
+  content: "";
+  position: absolute;
+  left: -3%; top: 18%; width: 24%; height: 64%;
+  background: #f5d5b8;
+  border-radius: 50%;
+}
+.ws-arm-right {
+  right: 0; top: 42%; width: 36%; height: 16%;
+  border-radius: 999px 999px 999px 50%;
+  transform: rotate(4deg);
+  transform-origin: 12% 50%;
+  animation: ws-armType 1.45s ease-in-out infinite;
+  z-index: 3;
+}
+.ws-arm-right::after {
+  content: "";
+  position: absolute;
+  right: -3%; top: 18%; width: 24%; height: 64%;
+  background: #f5d5b8;
+  border-radius: 50%;
+}
+
+/* Zzz */
+.ws-z {
+  position: absolute;
+  left: 66%; top: 23%;
+  color: var(--accent, #42c667);
+  font-weight: 700;
+  font-size: clamp(8px,.95vw,14px);
+  display: none;
+  opacity: 0;
+  animation: ws-floatZ 2.1s ease-in-out infinite;
+}
+
+/* 睡眠态 */
+.ws-person-sleep .ws-arm-right { right: 2%; top: 47%; width: 28%; height: 16%; transform: rotate(-5deg); animation: none; }
+.ws-person-sleep .ws-arm-left { left: 4%; top: 49%; width: 30%; height: 16%; transform: rotate(5deg); animation: none; }
+.ws-person-sleep .ws-head { transform: rotate(-26deg) translate(-10%,12%); animation: ws-sleepHead 4s ease-in-out infinite; }
+.ws-person-sleep .ws-z { display: block; }
+.ws-person-sleep .ws-person { animation: ws-workSway 4.8s ease-in-out infinite; }
+
+/* play 态 */
+.ws-person-play .ws-head { animation: ws-playHead 1.3s ease-in-out infinite; }
+.ws-person-play .ws-arm-left { animation: ws-playLeft 1.05s ease-in-out infinite; }
+.ws-person-play .ws-arm-right { animation: ws-playRight 1.05s ease-in-out infinite; }
+
+/* meeting 态 */
+.ws-person-meeting .ws-head { animation: ws-meetingLook 2.4s ease-in-out infinite; }
+
+/* reading 态 */
+.ws-person-reading .ws-head { animation: ws-readLean 3s ease-in-out infinite; }
+
+/* 完成态（绿色） */
+.ws-person-done .ws-torso,
+.ws-person-done .ws-head::before,
+.ws-person-done .ws-arm { background: #10b981; }
+
+/* 错误态（红色） */
+.ws-person-error .ws-torso,
+.ws-person-error .ws-head::before,
+.ws-person-error .ws-arm { background: #ef4444; }
+
+/* 发型 */
+.male-short .ws-head::before { left: 10%; top: -6%; width: 78%; height: 24%; border-radius: 70% 60% 24% 22%; }
+.male-side .ws-head { border-radius: 45% 55% 45% 55%; }
+.male-side .ws-head::before { left: -1%; top: -7%; width: 96%; height: 32%; border-radius: 70% 55% 28% 32%; }
+.female-bob .ws-head { width: 36%; left: 30%; border-radius: 44% 56% 58% 48%; }
+.female-bob .ws-head::before { left: -10%; top: -5%; width: 116%; height: 78%; border-radius: 48% 52% 56% 58%; z-index: -1; }
+.female-pony .ws-head::before { left: -4%; top: -7%; width: 92%; height: 38%; border-radius: 66% 52% 30% 28%; }
+.female-pony .ws-head::after { right: -28%; top: 35%; width: 30%; height: 28%; border-radius: 50% 60% 60% 42%; transform: rotate(8deg); }
+.female-bun .ws-head::before { left: 6%; top: -10%; width: 86%; height: 28%; border-radius: 62% 58% 30% 26%; }
+.female-bun .ws-head::after { right: -12%; top: 17%; width: 24%; height: 24%; border-radius: 50%; }
+
+/* 空工位 */
+.ws-empty .ws-person { display: none; }
+.ws-empty .ws-monitor { opacity: .35; }
+.ws-empty .ws-monitor .ws-screen .ws-toolbar,
+.ws-empty .ws-monitor .ws-screen .ws-pane,
+.ws-empty .ws-monitor .ws-screen .ws-line,
+.ws-empty .ws-monitor .ws-screen .ws-chart { display: none; }
+.ws-empty-person {
+  position: absolute;
+  left: 30%; top: 21%; width: 40%; height: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 3; opacity: .4; color: #94a3b8; font-size: 9px;
+}
+
+/* 信息 overlay */
+.ws-info-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 10; pointer-events: none;
+}
+.ws-info-name { padding: 0 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 8px; font-weight: 600; border-radius: 2px; margin-bottom: 2px; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-info-title { padding: 0 4px; background: rgba(0,0,0,.35); color: rgba(255,255,255,.8); font-size: 7px; border-radius: 2px; max-width: 85%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-info-progress { width: 60%; height: 3px; border-radius: 99px; background: rgba(255,255,255,.2); margin-top: 4px; overflow: hidden; }
+.ws-info-progress div { height: 100%; border-radius: 99px; background: #1E40AF; transition: width .7s; }
+.ws-info-done { color: #10b981; font-size: 10px; margin-top: 2px; }
+.ws-info-error { color: #ef4444; font-size: 10px; margin-top: 2px; }
+
+/* 工位延迟 */
+.ws-station:nth-child(1) { --accent: #70d266; }
+.ws-station:nth-child(2) { --accent: #ff1f15; }
+.ws-station:nth-child(3) { --accent: #8d2bff; }
+.ws-station:nth-child(4) { --accent: #14a5ee; }
+.ws-station:nth-child(5) { --accent: #f4dd19; }
+.ws-station:nth-child(6) { --accent: #18ddd1; }
+.ws-station:nth-child(2) .ws-person { animation-delay: -.7s; }
+.ws-station:nth-child(3) .ws-person { animation-delay: -1.4s; }
+.ws-station:nth-child(5) .ws-person { animation-delay: -.9s; }
+.ws-station:nth-child(6) .ws-person { animation-delay: -2s; }
+
+/* ═══════════════ 关键帧 ═══════════════ */
+@keyframes ws-workSway {
+  0%,100% { transform: rotate(-.8deg) translateY(0); }
+  50% { transform: rotate(.8deg) translateY(.8%); }
+}
+@keyframes ws-headNod {
+  0%,100% { transform: rotate(-4deg); }
+  50% { transform: rotate(5deg); }
+}
+@keyframes ws-sleepHead {
+  0%,100% { transform: rotate(-31deg) translate(-12%,10%); }
+  50% { transform: rotate(-24deg) translate(-9%,14%); }
+}
+@keyframes ws-armType {
+  0%,100% { transform: rotate(2deg) translateX(0); }
+  50% { transform: rotate(7deg) translateX(3%); }
+}
+@keyframes ws-leftWork {
+  0%,100% { transform: rotate(-3deg) translateX(0); }
+  50% { transform: rotate(-7deg) translateX(-3%); }
+}
+@keyframes ws-playHead {
+  0%,100% { transform: rotate(-7deg) translateY(0); }
+  50% { transform: rotate(7deg) translateY(-4%); }
+}
+@keyframes ws-playLeft {
+  0%,100% { transform: rotate(-9deg) translateX(-1%); }
+  50% { transform: rotate(4deg) translateX(5%); }
+}
+@keyframes ws-playRight {
+  0%,100% { transform: rotate(9deg) translateX(2%); }
+  50% { transform: rotate(-3deg) translateX(-4%); }
+}
+@keyframes ws-meetingLook {
+  0%,100% { transform: rotate(-12deg); }
+  50% { transform: rotate(10deg); }
+}
+@keyframes ws-readLean {
+  0%,100% { transform: rotate(8deg) translateY(2%); }
+  50% { transform: rotate(2deg) translateY(5%); }
+}
+@keyframes ws-monitorPulse {
+  0%,100% { filter: brightness(1); }
+  50% { filter: brightness(1.08); }
+}
+@keyframes ws-scanLine {
+  0%,100% { transform: scaleX(.8); opacity: .55; }
+  50% { transform: scaleX(1.08); opacity: 1; }
+}
+@keyframes ws-chartBeat {
+  0%,100% { height: 30%; }
+  50% { height: 86%; }
+}
+@keyframes ws-floatZ {
+  0% { transform: translate(0,8px); opacity: 0; }
+  25% { opacity: .9; }
+  100% { transform: translate(13px,-18px); opacity: 0; }
+}
+
+/* ═══════════════ 休息区 ═══════════════ */
+.ws-stage-with-rest {
+  display: flex; flex-direction: column;
+}
+.ws-office-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 14px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ========== 走动中的员工动画层 ========== */
+.ws-walking-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  overflow: visible;
+}
+
+.ws-walker {
+  position: absolute;
+  width: 22px;
+  height: 30px;
+}
+
+/* 走动动画：由 React 设置起点和终点的 CSS 变量 */
+.ws-walker.ws-walker-to-rest {
+  animation:
+    ws-walk-to-rest var(--duration, 1200ms) linear forwards,
+    ws-walk-bob 0.3s ease-in-out infinite;
+}
+
+.ws-walker.ws-walker-to-work {
+  animation:
+    ws-walk-to-work var(--duration, 1200ms) linear forwards,
+    ws-walk-bob 0.3s ease-in-out infinite;
+}
+
+@keyframes ws-walk-to-rest {
+  0%   { left: var(--start-x); top: var(--start-y); opacity: 0; transform: scale(.6); }
+  12%  { opacity: 1; transform: scale(1); }
+  88%  { opacity: 1; }
+  100% { left: var(--end-x); top: var(--end-y); opacity: 0; transform: scale(.6); }
+}
+
+@keyframes ws-walk-to-work {
+  0%   { left: var(--end-x); top: var(--end-y); opacity: 0; transform: scale(.6); }
+  12%  { opacity: 1; transform: scale(1); }
+  88%  { opacity: 1; }
+  100% { left: var(--start-x); top: var(--start-y); opacity: 0; transform: scale(.6); }
+}
+
+@keyframes ws-walk-bob {
+  0%,100% { margin-top: 0; }
+  50% { margin-top: -2px; }
+}
+
+/* 走动中：腿和手臂摆动 */
+.ws-walker .ws-mini-body { top: 13px; }
+.ws-walker .ws-mini-body .ws-mini-leg-left {
+  animation: ws-walk-leg-left 0.35s ease-in-out infinite;
+  transform-origin: top center;
+}
+.ws-walker .ws-mini-body .ws-mini-leg-right {
+  animation: ws-walk-leg-right 0.35s ease-in-out infinite;
+  transform-origin: top center;
+}
+.ws-walker .ws-mini-arm-left {
+  animation: ws-walk-arm-left 0.35s ease-in-out infinite !important;
+  transform-origin: top center;
+}
+.ws-walker .ws-mini-arm-right {
+  animation: ws-walk-arm-right 0.35s ease-in-out infinite !important;
+  transform-origin: top center;
+}
+
+@keyframes ws-walk-leg-left {
+  0%,100% { transform: rotate(-25deg); }
+  50% { transform: rotate(25deg); }
+}
+@keyframes ws-walk-leg-right {
+  0%,100% { transform: rotate(25deg); }
+  50% { transform: rotate(-25deg); }
+}
+@keyframes ws-walk-arm-left {
+  0%,100% { transform: rotate(-20deg); }
+  50% { transform: rotate(20deg); }
+}
+@keyframes ws-walk-arm-right {
+  0%,100% { transform: rotate(20deg); }
+  50% { transform: rotate(-20deg); }
+}
+
+.ws-rest-areas {
+  display: flex; flex-direction: column; gap: 10px;
+  min-width: 0;
+}
+
+.ws-rest-area {
+  position: relative;
+  flex: 1;
+  border-radius: 12px;
+  border: 1px solid;
+  padding: 10px 12px 8px;
+  display: flex; flex-direction: column;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.ws-rest-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px;
+}
+.ws-rest-icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.ws-rest-text { display: flex; flex-direction: column; min-width: 0; }
+.ws-rest-name { font-size: 12px; font-weight: 700; letter-spacing: .5px; }
+.ws-rest-ename { font-size: 9px; color: rgba(30,41,59,.45); font-weight: 500; letter-spacing: .4px; text-transform: uppercase; }
+
+.ws-rest-content {
+  flex: 1;
+  display: flex; flex-direction: column;
+  position: relative;
+  min-height: 0;
+}
+
+.ws-rest-decor {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: .75;
+}
+
+/* 咖啡角装饰 */
+.ws-decor-coffee .ws-coffee-machine {
+  position: absolute; left: 8%; top: 18%;
+  width: 22px; height: 26px;
+  background: linear-gradient(180deg, #8b5a3c, #6d4428);
+  border-radius: 4px 4px 2px 2px;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.15);
+}
+.ws-decor-coffee .ws-coffee-machine::before {
+  content: ''; position: absolute; left: 22%; top: 20%;
+  width: 56%; height: 22%;
+  background: #2d1810; border-radius: 2px;
+}
+.ws-decor-coffee .ws-coffee-machine::after {
+  content: ''; position: absolute; left: 18%; bottom: 18%;
+  width: 64%; height: 12%;
+  background: #c9a66b; border-radius: 1px;
+}
+.ws-decor-coffee .ws-coffee-cup {
+  position: absolute;
+  width: 10px; height: 10px;
+  background: #fff;
+  border-radius: 2px 2px 40% 40%;
+  border: 1px solid #d4a574;
+  box-shadow: 2px 3px 0 #c9a66b;
+}
+.ws-decor-coffee .ws-coffee-cup.c1 { right: 20%; top: 30%; }
+.ws-decor-coffee .ws-coffee-cup.c2 { right: 35%; top: 52%; width: 8px; height: 8px; }
+.ws-decor-coffee .ws-sofa {
+  position: absolute; right: 6%; bottom: 8%;
+  width: 38%; height: 28%;
+  background: linear-gradient(180deg, #d97706, #b45309);
+  border-radius: 6px 6px 3px 3px;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.1);
+}
+.ws-decor-coffee .ws-sofa::before {
+  content: ''; position: absolute; top: -20%; left: 8%; right: 8%; height: 45%;
+  background: #b45309; border-radius: 4px 4px 2px 2px;
+}
+.ws-decor-coffee .ws-sofa::after {
+  content: ''; position: absolute; top: 18%; left: 15%; right: 15%; height: 25%;
+  background: #f59e0b; border-radius: 3px;
+}
+
+/* 健身区装饰 */
+.ws-decor-fitness .ws-treadmill {
+  position: absolute; left: 8%; top: 15%;
+  width: 26px; height: 32px;
+}
+.ws-decor-fitness .ws-treadmill-screen {
+  position: absolute; left: 0; top: 0;
+  width: 100%; height: 28%;
+  background: #065f46;
+  border-radius: 3px;
+  font-size: 7px;
+  color: #10b981;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; letter-spacing: .5px;
+  box-shadow: inset 0 0 3px rgba(0,0,0,.4);
+}
+.ws-decor-fitness .ws-treadmill-belt {
+  position: absolute; left: 8%; bottom: 0;
+  width: 84%; height: 50%;
+  background: repeating-linear-gradient(90deg, #1f2937 0 4px, #374151 4px 8px);
+  border-radius: 2px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.3);
+}
+.ws-decor-fitness .ws-dumbbell {
+  position: absolute;
+  width: 16px; height: 6px;
+  background: #9ca3af;
+  border-radius: 2px;
+}
+.ws-decor-fitness .ws-dumbbell::before,
+.ws-decor-fitness .ws-dumbbell::after {
+  content: ''; position: absolute; top: -3px;
+  width: 5px; height: 12px;
+  background: linear-gradient(180deg, #6b7280, #4b5563);
+  border-radius: 2px;
+}
+.ws-decor-fitness .ws-dumbbell::before { left: -3px; }
+.ws-decor-fitness .ws-dumbbell::after { right: -3px; }
+.ws-decor-fitness .ws-dumbbell.d1 { right: 12%; bottom: 20%; transform: rotate(-20deg); }
+.ws-decor-fitness .ws-dumbbell.d2 { right: 28%; bottom: 32%; transform: rotate(25deg); }
+
+/* 洗手间装饰 */
+.ws-decor-toilet .ws-sink {
+  position: absolute; left: 10%; top: 20%;
+  width: 28px; height: 24px;
+}
+.ws-decor-toilet .ws-sink-top {
+  position: absolute; top: 0; left: 0; right: 0; height: 35%;
+  background: linear-gradient(180deg, #e2e8f0, #cbd5e1);
+  border-radius: 3px 3px 1px 1px;
+}
+.ws-decor-toilet .ws-sink-basin {
+  position: absolute; bottom: 0; left: 15%; right: 15%; height: 55%;
+  background: #f1f5f9;
+  border-radius: 0 0 40% 40% / 0 0 60% 60%;
+  box-shadow: inset 0 2px 3px rgba(0,0,0,.1);
+}
+.ws-decor-toilet .ws-sign {
+  position: absolute; right: 12%; bottom: 14%;
+  width: 22px; height: 22px;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 700; letter-spacing: 1px;
+  box-shadow: 0 2px 6px rgba(37,99,235,.3);
+}
+
+.ws-rest-people {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 10px;
+  z-index: 2;
+}
+
+/* ========== 休息区小人（精细版） ========== */
+.ws-mini-person {
+  position: relative;
+  width: 20px;
+  height: 28px;
+  animation: ws-miniBob 2.4s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* 头部 + 头发 */
+.ws-mini-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 13px;
+  height: 13px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #f5d5b8 0%, #e8c2a0 100%);
+  border-radius: 50% 50% 46% 46%;
+  box-shadow: inset -1px -1px 0 rgba(0,0,0,.08);
+  z-index: 3;
+}
+.ws-mini-hair {
+  position: absolute;
+  left: 50%;
+  top: -1px;
+  width: 15px;
+  height: 9px;
+  transform: translateX(-50%);
+  background: var(--accent, #334155);
+  border-radius: 50% 50% 20% 20% / 80% 80% 20% 20%;
+  opacity: .9;
+  z-index: 4;
+}
+.ws-mini-hair::before {
+  content: '';
+  position: absolute;
+  left: 55%;
+  top: 70%;
+  width: 5px;
+  height: 4px;
+  background: var(--accent, #334155);
+  border-radius: 2px;
+  transform: rotate(15deg);
+}
+
+/* 脸部细节 */
+.ws-mini-face {
+  position: absolute;
+  left: 0; right: 0; top: 5px;
+  height: 8px;
+  z-index: 5;
+}
+.ws-mini-eye {
+  position: absolute;
+  top: 1px;
+  width: 1.8px;
+  height: 1.8px;
+  background: #1e293b;
+  border-radius: 50%;
+}
+.ws-mini-eye-left { left: 2.5px; }
+.ws-mini-eye-right { right: 2.5px; }
+.ws-mini-mouth {
+  position: absolute;
+  bottom: 0.5px;
+  left: 50%;
+  width: 3.5px;
+  height: 1.8px;
+  border: 0.8px solid #a3785f;
+  border-top: none;
+  border-radius: 0 0 50% 50%;
+  transform: translateX(-50%);
+}
+
+/* 身体 */
+.ws-mini-body {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 16px;
+  height: 16px;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+/* 躯干（衣服颜色） */
+.ws-mini-body::before {
+  content: '';
+  position: absolute;
+  left: 15%;
+  top: 0;
+  width: 70%;
+  height: 60%;
+  background: var(--accent, #3b82f6);
+  border-radius: 4px 4px 6px 6px;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.1);
+}
+
+/* 手臂 */
+.ws-mini-arm {
+  position: absolute;
+  width: 4px;
+  height: 9px;
+  background: var(--accent, #3b82f6);
+  border-radius: 2px;
+  z-index: 1;
+}
+.ws-mini-arm-left {
+  left: 0;
+  top: 1px;
+  transform: rotate(10deg);
+  transform-origin: top center;
+  animation: ws-miniArmLeft 1.8s ease-in-out infinite;
+}
+.ws-mini-arm-right {
+  right: 0;
+  top: 1px;
+  transform: rotate(-10deg);
+  transform-origin: top center;
+  animation: ws-miniArmRight 1.8s ease-in-out infinite;
+}
+
+/* 腿 */
+.ws-mini-leg {
+  position: absolute;
+  bottom: 0;
+  width: 4px;
+  height: 7px;
+  background: #334155;
+  border-radius: 2px;
+}
+.ws-mini-leg-left { left: 3.5px; }
+.ws-mini-leg-right { right: 3.5px; }
+
+/* 名字标签 */
+.ws-mini-name {
+  position: absolute;
+  bottom: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 6.5px;
+  color: rgba(30,41,59,.55);
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* 不同姿势 */
+.ws-mini-sitting .ws-mini-body { transform: translateX(-50%) scaleY(.8); }
+.ws-mini-sitting .ws-mini-leg-left { transform: rotate(-15deg) translateX(1px); }
+.ws-mini-sitting .ws-mini-leg-right { transform: rotate(15deg) translateX(-1px); }
+
+.ws-mini-exercising {
+  animation: ws-miniBob 0.5s ease-in-out infinite;
+}
+.ws-mini-exercising .ws-mini-arm-left { animation: ws-miniArmLeft 0.6s ease-in-out infinite; }
+.ws-mini-exercising .ws-mini-arm-right { animation: ws-miniArmRight 0.6s ease-in-out infinite; }
+
+.ws-mini-queuing .ws-mini-head { animation: ws-miniLook 3s ease-in-out infinite; }
+
+/* 发型变体 - 通过不同颜色和形状 */
+.ws-mini-person.male-short .ws-mini-hair { border-radius: 50% 50% 30% 30% / 70% 70% 30% 30%; height: 7px; }
+.ws-mini-person.male-short .ws-mini-hair::before { display: none; }
+.ws-mini-person.male-side .ws-mini-hair { border-radius: 50% 50% 20% 40% / 60% 60% 40% 40%; height: 8px; }
+.ws-mini-person.male-side .ws-mini-hair::before {
+  display: block;
+  left: -1px; top: 55%;
+  width: 4px; height: 6px;
+  border-radius: 2px;
+}
+.ws-mini-person.female-bob .ws-mini-hair { height: 11px; border-radius: 50% 50% 40% 40% / 70% 70% 30% 30%; }
+.ws-mini-person.female-pony .ws-mini-hair::before {
+  display: block;
+  left: auto; right: -2px; top: 60%;
+  width: 5px; height: 7px;
+  border-radius: 3px 4px 3px 2px;
+}
+.ws-mini-person.female-bun .ws-mini-hair {
+  height: 10px;
+  border-radius: 50%;
+}
+.ws-mini-person.female-bun .ws-mini-hair::before {
+  display: block;
+  left: 50%;
+  top: -5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+/* 走动小人也使用相同发型样式 */
+.ws-walker.male-short .ws-mini-hair { border-radius: 50% 50% 30% 30% / 70% 70% 30% 30%; height: 7px; }
+.ws-walker.male-short .ws-mini-hair::before { display: none; }
+.ws-walker.male-side .ws-mini-hair { border-radius: 50% 50% 20% 40% / 60% 60% 40% 40%; height: 8px; }
+.ws-walker.male-side .ws-mini-hair::before {
+  display: block;
+  left: -1px; top: 55%;
+  width: 4px; height: 6px;
+  border-radius: 2px;
+}
+.ws-walker.female-bob .ws-mini-hair { height: 11px; border-radius: 50% 50% 40% 40% / 70% 70% 30% 30%; }
+.ws-walker.female-pony .ws-mini-hair::before {
+  display: block;
+  left: auto; right: -2px; top: 60%;
+  width: 5px; height: 7px;
+  border-radius: 3px 4px 3px 2px;
+}
+.ws-walker.female-bun .ws-mini-hair {
+  height: 10px;
+  border-radius: 50%;
+}
+.ws-walker.female-bun .ws-mini-hair::before {
+  display: block;
+  left: 50%;
+  top: -5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+/* 动画 */
+@keyframes ws-miniBob {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+@keyframes ws-miniArmLeft {
+  0%,100% { transform: rotate(8deg); }
+  50% { transform: rotate(18deg); }
+}
+@keyframes ws-miniArmRight {
+  0%,100% { transform: rotate(-8deg); }
+  50% { transform: rotate(-18deg); }
+}
+@keyframes ws-miniLook {
+  0%,45%,55%,100% { transform: translateX(-50%) rotate(0); }
+  50% { transform: translateX(-50%) rotate(-8deg); }
+}
+
+.ws-rest-empty {
+  position: absolute; right: 8%; bottom: 10%;
+  font-size: 9px; color: rgba(30,41,59,.3); font-weight: 500;
+  letter-spacing: 1px;
+}
+.ws-rest-count {
+  position: absolute; top: 6px; right: 8px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+
+/* 离岗工位状态 */
+.ws-station-empty .ws-monitor .ws-screen { background: #1e293b; }
+.ws-gone-msg {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 10;
+  color: rgba(148,163,184,.85);
+}
+.ws-gone-icon {
+  font-size: 12px;
+  margin-bottom: 2px;
+  animation: ws-goneFloat 2.4s ease-in-out infinite;
+}
+@keyframes ws-goneFloat {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.ws-gone-name { font-size: 7.5px; font-weight: 600; color: rgba(226,232,240,.9); }
+.ws-gone-sub { font-size: 6.5px; color: rgba(148,163,184,.6); margin-top: 1px; }
+
+.ws-gone-sign {
+  background: rgba(148,163,184,.08);
+  border-radius: 4px;
+  opacity: .55;
+}
+.ws-gone-sign svg { stroke-width: 1.2; }
+
+/* 响应式：窄屏时隐藏休息区 */
+@media (max-width: 900px) {
+  .ws-office-layout { grid-template-columns: 1fr; }
+  .ws-rest-areas { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   PixelAgent Canvas 像素小人（来自 pixel-agents 开源项目）
+   ═══════════════════════════════════════════════════════ */
+
+/* 工位上的像素小人 */
+.ws-pixel-person-slot {
+  position: absolute;
+  left: 30%;
+  top: 18%;
+  width: 40%;
+  height: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  z-index: 3;
+  animation: ws-workSway 4.8s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+.ws-pixel-person-slot canvas {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* 休息区的像素小人 */
+.ws-rest-people .ws-pixel-person-slot {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: auto;
+  height: auto;
+  display: inline-flex;
+  animation: ws-miniBob 2.4s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.ws-pixel-name {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 6.5px;
+  color: rgba(30, 41, 59, 0.55);
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* 走动中的像素小人 */
+.ws-pixel-walker {
+  position: absolute;
+  width: 40px;
+  height: 50px;
+}
+
+.ws-pixel-walker canvas {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+.ws-pixel-walker.ws-pixel-walker-to-rest {
+  animation:
+    ws-walk-to-rest var(--duration, 1200ms) linear forwards,
+    ws-walk-bob 0.3s ease-in-out infinite;
+}
+
+.ws-pixel-walker.ws-pixel-walker-to-work {
+  animation:
+    ws-walk-to-work var(--duration, 1200ms) linear forwards,
+    ws-walk-bob 0.3s ease-in-out infinite;
+}
+

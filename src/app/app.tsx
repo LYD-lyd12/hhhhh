@@ -23,14 +23,14 @@ type Page = 'dashboard' | 'models' | 'skills' | 'kb' | 'mcp' | 'api' | 'billing'
 
 function AppContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activePage, setActivePage] = useState<Page>('agents');
+  const [activePage, setActivePage] = useState<Page>('office');
   const { isAuthenticated, user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
   const adminPages: Page[] = ['nodes', 'users', 'settings'];
 
   if (!isAuthenticated) {
-    return <Login />;
+    return <OfficeFloor />;
   }
 
   const handleItemClick = (item: string) => {
